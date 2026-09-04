@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # monitor-cpu-temp.sh
-# Monitoraggio live temperature CPU (with colors & alert)
+# Live CPU temperature monitoring (with colours & alerts)
 # by K3rn3l-P - https://github.com/K3rn3l-P
 
 set -euo pipefail
@@ -15,7 +15,7 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-# Nascondi cursore per output continuo
+# Hide the cursor for continuous output
 tput civis 2>/dev/null || true
 
 while true; do
@@ -23,12 +23,12 @@ while true; do
     filtered=$(printf '%s\n' "$sensors_output" | grep -E '^(Package id [0-9]+|Core [0-9]+):' || true)
 
     printf '\033[H\033[2J'
-    printf '%s\n\n' "$(date '+%F %T')  ---   CPU TEMP LIVE  (Ctrl+C per uscire)"
-    printf '%-16s %-10s %-12s\n' "SENSORE" "TEMP" "STATO"
+    printf '%s\n\n' "$(date '+%F %T')  ---   CPU TEMP LIVE  (Ctrl+C to quit)"
+    printf '%-16s %-10s %-12s\n' "SENSOR" "TEMP" "STATUS"
     printf '%-16s %-10s %-12s\n' "---------------" "----------" "------------"
 
     if [[ -z "$filtered" ]]; then
-        printf '⚠️  Nessuna temperatura CPU trovata. Verifica che i sensori siano configurati e carica il modulo corretto.\n'
+        printf '⚠️  No CPU temperatures found. Check that the sensors are configured and load the right module.\n'
         sleep "$INTERVAL"
         continue
     fi
@@ -45,10 +45,10 @@ while true; do
             color="\033[32m"
 
             if (( inttemp >= CRIT )); then
-                state="PERICOLO"
+                state="DANGER"
                 color="\033[31;1m"
             elif (( inttemp >= WARN )); then
-                state="ALLERTA"
+                state="WARNING"
                 color="\033[33;1m"
             fi
 
@@ -58,7 +58,7 @@ while true; do
         fi
     done <<< "$filtered"
 
-    printf '\nProcessi top memoria:\n'
+    printf '\nTop processes by memory:\n'
     ps -eo pid,pmem,pcpu,comm --sort=-pmem | head -n 6 | awk 'NR==1 {printf "%-7s %-6s %-6s %s\n", $1, $2, $3, $4; next} {printf "%-7s %-6s %-6s %s\n", $1, $2, $3, $4}'
 
     sleep "$INTERVAL"

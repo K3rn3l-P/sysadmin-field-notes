@@ -1,26 +1,25 @@
 #!/bin/bash
 # configure-postfix-relay.sh
 #
-# Configura Postfix su un host Proxmox (o Debian in generale) per inoltrare
-# la posta tramite un relay SMTP esterno (default: Gmail), invece di provare
-# la consegna diretta — che su reti residenziali fallisce quasi sempre
-# (porta 25 bloccata dall'ISP, o il provider di destinazione rifiuta IP
-# residenziali). Questo è il motivo più comune per cui "le notifiche email
-# di Proxmox non arrivano mai": non manca la configurazione delle notifiche,
-# manca un relay su Postfix.
+# Configures Postfix on a Proxmox host (or Debian in general) to forward mail
+# through an external SMTP relay (Gmail by default), instead of attempting
+# direct delivery — which almost always fails on residential networks (port 25
+# blocked by the ISP, or the destination provider refusing residential IPs).
+# This is the most common reason "Proxmox email notifications never arrive":
+# the notification configuration isn't missing, a Postfix relay is.
 #
-# Prerequisito: crea /etc/postfix/sasl_passwd (vedi sasl_passwd.example in
-# questa cartella) con le credenziali reali PRIMA di lanciare questo script.
-# Per Gmail serve una App Password (Account Google -> Sicurezza -> Verifica
-# in due passaggi -> Password per le app) — la password normale dell'account
-# NON funziona per SMTP.
+# Prerequisite: create /etc/postfix/sasl_passwd (see sasl_passwd.example in
+# this folder) with the real credentials BEFORE running this script.
+# Gmail needs an App Password (Google Account -> Security -> 2-Step
+# Verification -> App passwords) — the normal account password does NOT work
+# for SMTP.
 #
-# Uso:
+# Usage:
 #   cp sasl_passwd.example /etc/postfix/sasl_passwd
-#   nano /etc/postfix/sasl_passwd   # inserisci le credenziali vere
+#   nano /etc/postfix/sasl_passwd   # enter the real credentials
 #   ./configure-postfix-relay.sh
 #
-# Idempotente: si può rilanciare senza duplicare configurazioni.
+# Idempotent: safe to re-run without duplicating configuration.
 
 set -euo pipefail
 
@@ -29,39 +28,38 @@ SMTP_PORT="${2:-587}"
 SASL_FILE="/etc/postfix/sasl_passwd"
 
 if [[ $EUID -ne 0 ]]; then
-	echo "Questo script va eseguito come root." >&2
+	echo "This script must be run as root." >&2
 	exit 1
 fi
 
 if [[ ! -f "$SASL_FILE" ]]; then
-	echo "Errore: $SASL_FILE non esiste." >&2
-	echo "Copia sasl_passwd.example in $SASL_FILE e inserisci le credenziali vere prima di rilanciare." >&2
+	echo "Error: $SASL_FILE does not exist." >&2
+	echo "Copy sasl_passwd.example to $SASL_FILE and enter the real credentials before re-running." >&2
 	exit 1
 fi
 
 if grep -q "your-app-password" "$SASL_FILE" 2>/dev/null; then
-	echo "Errore: $SASL_FILE contiene ancora il placeholder del template, non le credenziali vere." >&2
+	echo "Error: $SASL_FILE still holds the template placeholder, not real credentials." >&2
 	exit 1
 fi
 
-# Gotcha riscontrato in pratica: senza questo pacchetto Postfix fallisce
-# l'autenticazione SASL con "no mechanism available", anche con
-# sasl_passwd configurato correttamente. Facile da perdere, non ovvio
-# dal messaggio d'errore.
+# A gotcha found in practice: without this package Postfix fails SASL
+# authentication with "no mechanism available", even when sasl_passwd is
+# set up correctly. Easy to miss, and not obvious from the error message.
 if ! dpkg -s libsasl2-modules >/dev/null 2>&1; then
-	echo "Installo libsasl2-modules (necessario per l'autenticazione SASL SMTP)..."
+	echo "Installing libsasl2-modules (required for SMTP SASL authentication)..."
 	apt-get update -qq
 	apt-get install -y libsasl2-modules
 fi
 
-echo "Genero l'hash map di Postfix da $SASL_FILE..."
+echo "Generating the Postfix hash map from $SASL_FILE..."
 chmod 600 "$SASL_FILE"
 chown root:root "$SASL_FILE"
 postmap "$SASL_FILE"
 chmod 600 "${SASL_FILE}.db"
 chown root:root "${SASL_FILE}.db"
 
-echo "Configuro il relay in main.cf..."
+echo "Configuring the relay in main.cf..."
 postconf -e "relayhost = [${SMTP_SERVER}]:${SMTP_PORT}"
 postconf -e "smtp_use_tls = yes"
 postconf -e "smtp_sasl_auth_enable = yes"
@@ -72,8 +70,8 @@ postconf -e "smtp_tls_CAfile = /etc/ssl/certs/ca-certificates.crt"
 systemctl reload postfix
 
 echo
-echo "Fatto. Verifica con:"
+echo "Done. Verify with:"
 echo "  postconf -n relayhost"
-echo "  pvesh create /cluster/notifications/targets/mail-to-root/test   # se sei su Proxmox"
-echo "  mailq   # deve restare vuota dopo l'invio"
-echo "  journalctl -S '-2 min' | grep 'postfix/smtp'   # cerca 'status=sent'"
+echo "  pvesh create /cluster/notifications/targets/mail-to-root/test   # if you're on Proxmox"
+echo "  mailq   # should stay empty after sending"
+echo "  journalctl -S '-2 min' | grep 'postfix/smtp'   # look for 'status=sent'"

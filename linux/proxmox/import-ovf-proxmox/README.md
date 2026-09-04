@@ -1,64 +1,64 @@
-# Importazione OVF su Proxmox VE – Linux
+# Importing an OVF into Proxmox VE – Linux
 
-## Scopo
-Guida pratica per importare una VM in formato OVF su Proxmox VE usando il comando `qm importovf`.
+## Purpose
+Practical guide to importing a VM in OVF format into Proxmox VE with `qm importovf`.
 
-## Prerequisiti
+## Prerequisites
 
-- Proxmox VE installato e funzionante
-- File `.ovf` disponibile sul host Proxmox
-- Storage configurato su Proxmox (es. `SSD`)
+- A working Proxmox VE installation
+- The `.ovf` file available on the Proxmox host
+- Storage configured in Proxmox (for example `SSD`)
 
-## Sintassi corretta
+## Correct syntax
 
 ```bash
 qm importovf <vmid> <manifest.ovf> <storage>
 ```
 
-- `<vmid>`: ID numerico che vuoi assegnare alla VM su Proxmox (es: `100`)
-- `<manifest.ovf>`: file `.ovf` (es: `'TERA VM 100.02.ovf'`)
-- `<storage>`: nome dello storage Proxmox dove mettere i dischi (es: `SSD`)
+- `<vmid>`: the numeric ID to assign to the VM in Proxmox (e.g. `100`)
+- `<manifest.ovf>`: the `.ovf` file (e.g. `'TERA VM 100.02.ovf'`)
+- `<storage>`: the name of the Proxmox storage to put the disks on (e.g. `SSD`)
 
-> Non serve indicare disco o directory, Proxmox legge tutto dal file OVF.
+> There's no need to name a disk or a directory — Proxmox reads all of that from the OVF file.
 
-## Esempio pratico
+## Worked example
 
 ```bash
 qm importovf 100 'TERA VM 100.02.ovf' SSD
 ```
 
-> Se il nome del file contiene spazi, usa le virgolette.
+> Quote the filename if it contains spaces.
 
-## Passaggi consigliati
+## Suggested steps
 
-1. Vai nella directory del file OVF:
+1. Change into the directory holding the OVF file:
 
     ```bash
     cd /mnt/4TB/TERA/Tera-Server(100.02)/TERA_VM-ovf_100.02
     ```
 
-2. Esegui il comando:
+2. Run the command:
 
     ```bash
     qm importovf 100 'TERA VM 100.02.ovf' SSD
     ```
 
-3. Attendi l’importazione. La VM sarà visibile sull’interfaccia Proxmox.
+3. Wait for the import to finish. The VM then shows up in the Proxmox interface.
 
-## Consigli aggiuntivi
+## Further tips
 
-- Assicurati che lo storage (`SSD`) sia configurato su Proxmox VE.
-- Verifica i permessi e lo spazio disponibile sullo storage.
-- Cambia l’ID (`100`) secondo necessità.
-
----
-
-## Risoluzione problemi comuni
-
-- Storage non trovato: controlla con `pvesm status`
-- File OVF non leggibile: verifica permessi e path
-- ID VM già in uso: scegli un ID libero con `qm list`
+- Make sure the storage (`SSD`) is configured in Proxmox VE.
+- Check permissions and free space on the storage.
+- Change the ID (`100`) as needed.
 
 ---
 
-**Ultimo aggiornamento:** Aprile 2026
+## Common problems
+
+- Storage not found: check with `pvesm status`
+- OVF file unreadable: verify permissions and path
+- VM ID already in use: pick a free one with `qm list`
+
+---
+
+**Last updated:** April 2026

@@ -1,141 +1,150 @@
-# Guida Completa – Come "Sbloccare", Cancellare e Riutilizzare un Disco LVM in Proxmox VE
+# Full guide – releasing, wiping and reusing an LVM disk in Proxmox VE
 
-## Scopo  
-A volte in Proxmox, un disco o una partizione risulta "bloccata" o inutilizzabile perché ancora in uso da LVM (Logical Volume Manager) anche se le VM non la stanno più usando. Questa guida spiega, con esempi e spiegazioni, come identificare la causa, sbloccare e azzerare un disco per poi riutilizzarlo su Proxmox, esattamente come abbiamo fatto nella nostra esperienza reale.
-
----
-
-## Prerequisiti e Note di Sicurezza
-
-- **Attenzione:** Tutti i dati sul disco selezionato saranno persi, irrimediabilmente.
-- Esegui le operazioni **solo se sei sicuro di lavorare sul disco giusto** (tipicamente `/dev/sdb`, ma controlla!).
-- Le operazioni vanno fatte da utente `root` sul nodo Proxmox (via terminale/Shell).
+## Purpose
+Sometimes a disk or partition in Proxmox is "stuck" or unusable because LVM (Logical Volume
+Manager) still holds it, even though no VM is using it any more. This guide covers how to identify
+the cause, release the disk and zero it so Proxmox can use it again — the way it played out in
+practice.
 
 ---
 
-## 1. Diagnosi iniziale: capire cosa tiene occupato il disco
+## Prerequisites and safety notes
 
-**Puoi trovarti davanti a errori come:**
+- **Warning:** every byte on the chosen disk will be lost, irreversibly.
+- Only do this **if you're certain you're working on the right disk** (typically `/dev/sdb`, but
+  check!).
+- Run everything as `root` on the Proxmox node (terminal/shell).
+
+---
+
+## 1. First diagnosis: find out what is holding the disk
+
+**You may run into errors like:**
 - `disk/partition '/dev/sdb3' has a holder (500)`
 - `error wiping '/dev/sdb1': dd: invalid number: '0.9833984375'`
 
-> Questi avvisi vogliono dire che qualcosa (spesso LVM) usa ancora il disco o partizione.
+> These mean something — usually LVM — is still using the disk or partition.
 
-### 1.1 Mostra la situazione dischi e LVM
+### 1.1 Show the disk and LVM layout
 
 ```bash
-# Mostra i dischi e le strutture LVM collegate
+# Show disks and the LVM structures attached to them
 lsblk
 lvs
 pvs
 vgs
 ```
 
-**Output tipico:**
+**Typical output:**
 ```
 sdb                                   8:16   0 223.6G  0 disk
 ├─sdb1                                8:17   0  1007K  0 part
 ├─sdb2                                8:18   0     1G  0 part
 └─sdb3                                8:19   0 222.6G  0 part
   ├─pve--OLD--xxxx-root        252:3    0  65.6G  0 lvm
-  ... (altri LV)
+  ... (other LVs)
 ```
-Noterai che *la partizione sdb3 ha dei Logical Volumes (LV) associati a un Volume Group (VG) tipo `pve-OLD-...`*.
+Note how *partition sdb3 has Logical Volumes (LVs) belonging to a Volume Group (VG) such as
+`pve-OLD-...`*.
 
 ---
 
-## 2. Disattivare qualsiasi uso del disco (umount, lvchange, vgchange)
+## 2. Deactivate everything using the disk (umount, lvchange, vgchange)
 
-È fondamentale disattivare tutti i Logical Volumes e il Volume Group associati al disco:
+You have to deactivate every Logical Volume and the Volume Group attached to the disk:
 
 ```bash
-# Prova a smontare eventuali filesystem montati (tanti LV potrebbero essere già non montati)
-umount /dev/mapper/pve--OLD--xxxx-root   # (se montato)
-umount /dev/mapper/pve--OLD--xxxx-data   # (se montato)
-# Non andare in errore se già non sono montati.
+# Try to unmount any mounted filesystems (many LVs may not be mounted at all)
+umount /dev/mapper/pve--OLD--xxxx-root   # (if mounted)
+umount /dev/mapper/pve--OLD--xxxx-data   # (if mounted)
+# Don't worry if they aren't mounted.
 
-# Disattiva tutti i LV associati al VG
+# Deactivate all LVs in the VG
 lvchange -an pve-OLD-xxxx/swap
 lvchange -an pve-OLD-xxxx/root
 lvchange -an pve-OLD-xxxx/data
 lvchange -an pve-OLD-xxxx/data_tmeta
 lvchange -an pve-OLD-xxxx/data_tdata
 lvchange -an pve-OLD-xxxx/data-tpool
-# Puoi elencare tutti i LV con: lvs
+# List them all with: lvs
 
-# Disattiva il Volume Group intero
+# Deactivate the whole Volume Group
 vgchange -an pve-OLD-xxxx
 ```
-(Sostituisci `xxxx` con quello che hai trovato da `lsblk/vgs`)
+(Replace `xxxx` with whatever `lsblk`/`vgs` showed you.)
 
 ---
 
-## 3. Rimuovere Volume Group e Physical Volume
+## 3. Remove the Volume Group and Physical Volume
 
 ```bash
-# Elimina il Volume Group (chiederà conferma)
+# Delete the Volume Group (it will ask for confirmation)
 vgremove pve-OLD-xxxx
 
-# Rimuovi la firma LVM dalla partizione
+# Remove the LVM signature from the partition
 pvremove /dev/sdb3
 ```
 
-Se ricevi ancora errori di "holder", assicurati che nessun processo usi più il disco:
+If you still get "holder" errors, make sure no process is using the disk any more:
 ```bash
 lsof | grep /dev/sdb
-cat /proc/swaps          # Se usato come swap, eseguire swapoff /dev/sdbX
+cat /proc/swaps          # if it's in use as swap, run swapoff /dev/sdbX
 ```
 
 ---
 
-## 4. Cancellare tutte le firme dal disco
-Ora puoi eliminare le firme LVM e la vecchia tabella partizioni dal disco intero, NON solo la partizione:
+## 4. Wipe every signature from the disk
+Now you can clear the LVM signatures and the old partition table from the whole disk, not just the
+partition:
 
 ```bash
-wipefs -a /dev/sdb      # Rimuove tutte le firme note
-sgdisk --zap-all /dev/sdb  # Cancella la GPT e PMBR
+wipefs -a /dev/sdb      # removes all known signatures
+sgdisk --zap-all /dev/sdb  # wipes the GPT and PMBR
 
-# (Extra sicurezza: cancella i primi MB del disco)
+# (Extra safety: zero the first few MB of the disk)
 dd if=/dev/zero of=/dev/sdb bs=1M count=10
 
-# (Opzionale) Cancella qualsiasi eventuale swap rimasto attivo
+# (Optional) turn off any swap still active
 swapoff /dev/sdb2
 ```
 
 ---
 
-## 5. (Opzionale) Crea tabella partizioni nuova
+## 5. (Optional) Create a fresh partition table
 
-Se vuoi subito preparare il disco per un nuovo uso:
+To prepare the disk for reuse straight away:
 ```bash
 parted /dev/sdb mklabel gpt
 ```
-Oppure, lascia vuoto per gestire tutto dall’interfaccia GUI di Proxmox.
+Or leave it empty and do everything from the Proxmox GUI.
 
 ---
 
-## 6. Riscansiona dalla GUI Proxmox
+## 6. Rescan from the Proxmox GUI
 
-È ora possibile aggiungere il disco come storage oppure usarlo per nuove VM o container in Proxmox VE dalla GUI senza errori.
-
----
-
-## FAQ e Errori Comuni
-
-**Q: Ho ancora messaggi “has a holder”?**  
-A: Ciò succede se qualcosa usa ancora il disco: verifica con `lsof | grep /dev/sdb` e assicurati che nessun Logical Volume sia ancora attivo (`lvs`, `vgdisplay`).
-
-**Q: Ho paura di cancellare il disco sbagliato!**  
-A: Leggi bene output di `lsblk` e verifica taglia/dispositivo prima di procedere. Meglio verificare una volta in più che una in meno!
+You can now add the disk as storage, or use it for new VMs and containers in Proxmox VE from the
+GUI, without errors.
 
 ---
 
-## Risorse Utili
+## FAQ and common errors
+
+**Q: I still get "has a holder" messages.**
+A: Something is still using the disk: check with `lsof | grep /dev/sdb` and make sure no Logical
+Volume is still active (`lvs`, `vgdisplay`).
+
+**Q: I'm afraid of wiping the wrong disk!**
+A: Read the `lsblk` output carefully and confirm size and device before going ahead. Better to
+check one time too many than one too few.
+
+---
+
+## Useful resources
 
 - [Proxmox Wiki - LVM](https://pve.proxmox.com/wiki/LVM)
-- [Comandi LVM](https://wiki.archlinux.org/title/LVM)
+- [LVM commands](https://wiki.archlinux.org/title/LVM)
 - [wipefs man page](https://man7.org/linux/man-pages/man8/wipefs.8.html)
 
 ---
 
-*Questa guida è stata testata su Proxmox VE 8.x e kernel 6.x, basata su esperienza reale del troubleshooting!*
+*Tested on Proxmox VE 8.x with a 6.x kernel, based on real troubleshooting.*

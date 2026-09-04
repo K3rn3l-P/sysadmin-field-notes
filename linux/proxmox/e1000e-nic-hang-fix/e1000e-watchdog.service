@@ -1,6 +1,6 @@
 [Unit]
-Description=Auto-recovery watchdog per hang della NIC e1000e (eno1, 82579LM)
-Documentation=https://github.com/K3rn3l-P/utility-scripts/tree/main/linux/proxmox/e1000e-nic-hang-fix
+Description=Auto-recovery watchdog for e1000e NIC hangs (eno1, 82579LM)
+Documentation=https://github.com/K3rn3l-P/sysadmin-field-notes/tree/main/linux/proxmox/e1000e-nic-hang-fix
 After=network-online.target
 Wants=network-online.target
 

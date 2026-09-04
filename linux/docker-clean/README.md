@@ -1,41 +1,43 @@
-# Pulizia avanzata Docker – Linux
+# Deep Docker cleanup – Linux
 
-## Scopo
-Guida rapida per liberare spazio su host Linux tramite la pulizia della cache Docker, immagini, container, volumi e risorse non usate.
+## Purpose
+Quick guide to reclaiming space on a Linux host by clearing the Docker build cache, images,
+containers, volumes and other unused resources.
 
-## Prerequisiti
+## Prerequisites
 
-- Docker installato e funzionante
-- Accesso con permessi adeguati (`sudo`) sul host
-- Consapevolezza che alcuni comandi rimuovono dati non riferiti da container attivi
+- Docker installed and running
+- Adequate permissions (`sudo`) on the host
+- Awareness that some of these commands remove data not referenced by any running container
 
-## 1. Cancella cache build inutilizzata / immagini non usate
+## 1. Clear unused build cache and dangling images
 
 ```bash
 docker builder prune -f
 docker image prune -f
 ```
 
-Questa operazione libera spazio rimuovendo layer di build non più usati e immagini orfane.
+This frees space by removing build layers that are no longer used, plus orphaned images.
 
-## 2. Pulizia estesa
+## 2. Extended cleanup
 
 ```bash
 docker system prune -a -f
 ```
 
-> **Nota:**
-> `system prune -a` può farti riscaricare immagini la prossima volta (più lento), ma libera parecchio spazio.
+> **Note:**
+> `system prune -a` may force you to pull images again next time (slower), but it frees a lot of
+> space.
 
-## 3. Log container
+## 3. Container logs
 
 ```bash
 docker logs watchtower-tmc -f
 ```
 
-Usa questo comando per seguire in tempo reale i log di uno specifico container.
+Use this to follow a specific container's logs in real time.
 
-## 4. Rimozione di container e risorse specifici
+## 4. Removing specific containers and resources
 
 ```bash
 docker stop postgres pgadmin4
@@ -44,57 +46,58 @@ docker volume rm postgres pgadmin4
 docker network rm pgnetwork
 ```
 
-Questi comandi fermano e cancellano container, volumi e network specifici.
+These stop and delete specific containers, volumes and networks.
 
-## 5. Rimozione globale con Docker Compose
+## 5. Removing everything with Docker Compose
 
 ```bash
 docker compose down -v
 ```
 
-Questo comando ferma i servizi definiti da `docker-compose.yml` e rimuove i volumi associati.
+This stops the services defined in `docker-compose.yml` and removes the associated volumes.
 
-## 6. Accesso a un container specifico
+## 6. Getting into a specific container
 
-Nel caso specifico del container con l'ID `e4ebd319af69`:
+Here, for the container with ID `e4ebd319af69`:
 
-### 6.1 Usa `docker exec` per accedere alla shell interattiva
+### 6.1 Use `docker exec` for an interactive shell
 
 ```bash
 docker exec -it e4ebd319af69 /bin/sh
 ```
 
-Se il container usa `bash`, sostituisci con:
+If the container has `bash`, use that instead:
 
 ```bash
 docker exec -it e4ebd319af69 /bin/bash
 ```
 
-### 6.2 Usa `docker attach` per collegarti all'output del container
+### 6.2 Use `docker attach` to hook onto the container's output
 
 ```bash
 docker attach e4ebd319af69
 ```
 
-> Nota: Se utilizzi `docker attach`, potresti perdere il controllo del terminale se il container non è configurato per supportare input interattivo.
+> Note: with `docker attach` you can lose control of the terminal if the container isn't set up to
+> accept interactive input.
 
-### 6.3 Verifica la presenza di una shell nel container
+### 6.3 Check which shells exist in the container
 
 ```bash
 docker exec -it e4ebd319af69 which bash
 docker exec -it e4ebd319af69 which sh
 ```
 
-Se una delle shell non esiste, usa quella disponibile.
+If one of them isn't there, use whichever is.
 
 ---
 
-## Note importanti
+## Important notes
 
-- Fai sempre un controllo con `docker system df` prima e dopo le pulizie.
-- Evita `docker system prune -a -f` su host di produzione senza avere un piano di rollback.
-- Controlla se ci sono container importanti o volumi montati che non vuoi cancellare.
+- Always check with `docker system df` before and after a cleanup.
+- Avoid `docker system prune -a -f` on production hosts without a rollback plan.
+- Check whether there are containers or mounted volumes you don't want to delete.
 
 ---
 
-**Ultimo aggiornamento:** Aprile 2026
+**Last updated:** April 2026

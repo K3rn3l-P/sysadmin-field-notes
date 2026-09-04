@@ -1,201 +1,208 @@
-# Proxmox NVIDIA RTX 2070 GPU Passthrough – Guida Completa (Testata)
+# Proxmox NVIDIA RTX 2070 GPU passthrough – complete (tested) guide
 
-> **Testata su Proxmox VE 6/7/8/9, kernel >=6.8, host UEFI, NVIDIA RTX 2070**  
-> Valida per tutte le NVIDIA serie RTX/Ampere/Turing (vedi sez. “IDs PCI”).
-
----
-
-## Prerequisiti
-
-- Proxmox VE installato e aggiornato (testato 6/7/8/9)
-- Accesso root via SSH/shell
-- GPU dedicata (NON quella usata dal boot/console host!)
-- Mainboard & CPU *con supporto VT-d/IOMMU* (abilitalo nel BIOS!)
-- **Disabilita CSM/Legacy Boot** in UEFI/BIOS se presente (CRITICO per molte GPU NVIDIA)
-- Backup dati delle VM
+> **Tested on Proxmox VE 6/7/8/9, kernel >=6.8, UEFI host, NVIDIA RTX 2070**
+> Applies to all NVIDIA RTX/Ampere/Turing cards (see the "PCI IDs" section).
 
 ---
 
-## 📌 Sezione CSM/Legacy su HP Z420 (dettagliata)
+## Prerequisites
 
-**Per disabilitare il CSM (Compatibility Support Module) su HP Z420:**
-- Riavvia il server e premi ripetutamente **F10** all’avvio per accedere al BIOS.
-- Vai nel menu:  
+- Proxmox VE installed and up to date (tested on 6/7/8/9)
+- Root access over SSH/shell
+- A dedicated GPU (NOT the one driving the host's boot/console!)
+- Motherboard and CPU *with VT-d/IOMMU support* (enable it in the BIOS)
+- **Disable CSM/Legacy Boot** in UEFI/BIOS if present (CRITICAL for many NVIDIA cards)
+- A backup of the VM data
+
+---
+
+## 📌 CSM/Legacy on the HP Z420 (in detail)
+
+**To disable CSM (Compatibility Support Module) on an HP Z420:**
+- Reboot the server and press **F10** repeatedly at startup to enter the BIOS.
+- Go to:
   **Storage → Boot Order**
-- Cerca e imposta:  
-    - **Legacy Support** (o “CSM”): su **Disabled**
-    - (Facoltativo) Assicurati che “UEFI Boot Order” sia in cima/Enabled
-- Dopo aver disabilitato CSM, il sistema userà solo UEFI. 
-    - *Nota*: Secure Boot potrebbe attivarsi automaticamente; puoi lasciarlo attivo o metterlo su Disabled secondo necessità, ma il CSM/legacy deve restare disabilitato.
-- **Salva** le modifiche (F10 o ESC → Save) e riavvia.
+- Find and set:
+    - **Legacy Support** (or "CSM"): **Disabled**
+    - (Optional) make sure "UEFI Boot Order" is at the top / Enabled
+- With CSM disabled the system uses UEFI only.
+    - *Note*: Secure Boot may switch itself on; you can leave it enabled or set it to Disabled as
+      you prefer, but CSM/legacy must stay off.
+- **Save** the changes (F10 or ESC → Save) and reboot.
 
-> _Se Proxmox non parte più:_ Controlla che il disco d’avvio sia compatibile UEFI (conversione da legacy a UEFI può richiedere fix sulle partizioni; vedi la wiki ufficiale Proxmox).
+> _If Proxmox no longer boots:_ check that the boot disk is UEFI-compatible (converting from legacy
+> to UEFI can require partition fixes; see the official Proxmox wiki).
 
 ---
 
-## 📌 Console locale su host con una sola GPU passthrough (HP Z420)
+## 📌 Local console on a host with a single passed-through GPU (HP Z420)
 
-**Problema:** se l'host ha una sola GPU e va tutta in passthrough (`disable_vga=1` in
-`vfio.conf`), l'host perde la console video locale. Il framebuffer si accende al boot, ma non
-appena `vfio-pci` rivendica la scheda (in genere entro i primi ~10 secondi) il framebuffer viene
-distrutto e lo schermo va nero. Nessun errore visibile, nessun login — se qualcosa va storto e la
-rete non risponde, l'host è irraggiungibile anche fisicamente.
+**Problem:** if the host has only one GPU and all of it goes to passthrough (`disable_vga=1` in
+`vfio.conf`), the host loses its local video console. The framebuffer comes up at boot, but as soon
+as `vfio-pci` claims the card (usually within the first ~10 seconds) the framebuffer is destroyed
+and the screen goes black. No visible error, no login — so if something goes wrong and the network
+is down, the host is unreachable even physically.
 
-**Soluzione testata:** una seconda GPU economica, dedicata alla sola console dell'host, lasciata
-fuori da `vfio.conf`. Su HP Z420 con RTX 2070 in passthrough + GeForce GT 620 come console:
+**Tested solution:** a cheap second GPU dedicated solely to the host console, kept out of
+`vfio.conf`. On an HP Z420 with the RTX 2070 in passthrough and a GeForce GT 620 as console:
 
-- **Slot:** GT 620 nello slot 5 (bus `0000:04:00`), RTX 2070 lasciata nello slot 2 (bus
-  `0000:05:00`). Mappa completa slot fisico → bus PCI sulla Z420:
+- **Slots:** GT 620 in slot 5 (bus `0000:04:00`), RTX 2070 left in slot 2 (bus `0000:05:00`). Full
+  physical slot → PCI bus map on the Z420:
 
-  | Slot HP | Bus | Tipo | Note |
+  | HP slot | Bus | Type | Notes |
   |---|---|---|---|
-  | 1 (alto) | 07 | PCIe Gen2 x4(x1) | connettore chiuso, una GPU non entra |
-  | 2 | 05 | PCIe Gen3 x16 | slot della RTX 2070 |
-  | 3 | 06 | PCIe Gen2 x8(x4) open-ended | utilizzabile ma scomodo |
-  | 4 | 03 | PCIe Gen3 x8 open-ended | utilizzabile ma scomodo |
-  | 5 | 04 | PCIe Gen3 x16 | slot della GT 620 |
+  | 1 (top) | 07 | PCIe Gen2 x4(x1) | closed-end connector, a GPU won't fit |
+  | 2 | 05 | PCIe Gen3 x16 | the RTX 2070's slot |
+  | 3 | 06 | PCIe Gen2 x8(x4) open-ended | usable but awkward |
+  | 4 | 03 | PCIe Gen3 x8 open-ended | usable but awkward |
+  | 5 | 04 | PCIe Gen3 x16 | the GT 620's slot |
   | 6 | 09 | PCI 32bit/33MHz | legacy |
 
-  La RTX 2070 è rimasta nello slot 2 invece di essere spostata: nello slot 5 le ventole
-  sarebbero quasi a contatto col case, con temperature più alte sotto carico continuo.
+  The RTX 2070 stayed in slot 2 rather than being moved: in slot 5 its fans would sit almost
+  against the case, running hotter under sustained load.
 
-- **BIOS — designare la GPU di console come primaria:** `F10 → Advanced → VGA Configuration`.
-  Il menu elenca le GPU per slot; si seleziona quella desiderata come primaria con **F5**, poi
-  **F10** per confermare e *Save & Exit*. **Questa voce compare solo quando ci sono due schede
-  video installate** — è per questo che è facile non trovarla mai. Da non confondere con:
-  - `Advanced → Bus Options`: nonostante la Maintenance and Service Guide HP lo lasci intendere
-    (*"designates one card as primary graphics"*), su Z420/Z620/Z820 contiene solo Numa, MMIO
-    Assignment, PCI SERR#, VGA Palette Snooping, PCI Latency Timer — nulla che riguardi quale
-    scheda fa da boot device
-  - `Advanced → Slot Settings`: abilita/disabilita l'intero slot PCIe, non seleziona la primaria
+- **BIOS — designating the console GPU as primary:** `F10 → Advanced → VGA Configuration`.
+  The menu lists the GPUs by slot; select the one you want as primary with **F5**, then **F10** to
+  confirm and *Save & Exit*. **This entry only appears when two graphics cards are installed** —
+  which is why it's so easy never to find it. Don't confuse it with:
+  - `Advanced → Bus Options`: despite what HP's Maintenance and Service Guide implies
+    (*"designates one card as primary graphics"*), on the Z420/Z620/Z820 it only holds Numa, MMIO
+    Assignment, PCI SERR#, VGA Palette Snooping and PCI Latency Timer — nothing about which card
+    acts as boot device
+  - `Advanced → Slot Settings`: enables or disables a whole PCIe slot, it doesn't pick the primary
 
-- **Verifica che la GPU giusta sia diventata la scheda di boot:**
+- **Confirm the right GPU became the boot card:**
   ```bash
-  cat /sys/bus/pci/devices/0000:04:00.0/boot_vga   # GT 620  → atteso 1
-  cat /sys/bus/pci/devices/0000:05:00.0/boot_vga   # RTX 2070 → atteso 0
-  cat /sys/class/vtconsole/*/name                   # atteso: "(M) frame buffer device"
+  cat /sys/bus/pci/devices/0000:04:00.0/boot_vga   # GT 620  → expected 1
+  cat /sys/bus/pci/devices/0000:05:00.0/boot_vga   # RTX 2070 → expected 0
+  cat /sys/class/vtconsole/*/name                   # expected: "(M) frame buffer device"
   ```
-  Prima della correzione, in `dmesg` compariva `Console: switching to colour dummy device 80x25`
-  pochi secondi dopo il boot (`vfio-pci` che si prendeva la scheda sbagliata). Dopo la
-  correzione quella riga sparisce e la console framebuffer resta quella attiva.
+  Before the fix, `dmesg` showed `Console: switching to colour dummy device 80x25` a few seconds
+  into the boot (`vfio-pci` grabbing the wrong card). Afterwards that line is gone and the
+  framebuffer console stays active.
 
-- **Effetto collaterale utile:** con la seconda GPU come primaria, `video=efifb:off,vesafb:off`
-  (sezione "Kernel cmdline e framebuffer" più sopra) diventa superfluo — non c'è più un
-  framebuffer da nascondere al passthrough, perché quello attivo non è sulla GPU passata alla VM.
-  Consigliato rimuoverlo comunque dal cmdline: è un parametro pensato per spegnere una console
-  framebuffer, e non ha motivo di restare quando quella console è diventata la rete di sicurezza
-  dell'host.
+- **A useful side effect:** with the second GPU as primary, `video=efifb:off,vesafb:off` (see
+  "Kernel cmdline and framebuffer" below) becomes unnecessary — there's no longer a framebuffer to
+  hide from passthrough, because the active one isn't on the GPU handed to the VM. Remove it from
+  the cmdline anyway: it's a parameter meant to switch off a framebuffer console, and there's no
+  reason to keep it once that console has become the host's safety net.
 
-- **Verifica passthrough non compromesso:** cambiare la scheda di boot non ha alterato il gruppo
-  IOMMU della GPU in passthrough (verificato: restava lo stesso prima e dopo). Da controllare
-  comunque caso per caso con `find /sys/kernel/iommu_groups/ -type l | sort` prima e dopo il
-  cambio, e riavviando la VM con la GPU passata per confermare che riparta.
-
----
-
-## 1. Abilita Virtualizzazione nel BIOS
-
-- Riavvia e accedi al BIOS/UEFI (F10 su HP)
-- Abilita:
-    - **Intel VT-x** (CPU Virtualization)
-    - **Intel VT-d** (PCIe/IOMMU pass-through)
-- **Disabilita CSM/Compatibility Support Module** come sopra
-- Salva e riavvia
+- **Check passthrough still works:** changing the boot card did not alter the IOMMU group of the
+  passed-through GPU (verified: identical before and after). Check case by case anyway with
+  `find /sys/kernel/iommu_groups/ -type l | sort` before and after the change, and restart the VM
+  with the passed-through GPU to confirm it still comes up.
 
 ---
 
-## 2. Trova la tua scheda NVIDIA e i suoi IDs
+## 1. Enable virtualisation in the BIOS
+
+- Reboot and enter the BIOS/UEFI (F10 on HP)
+- Enable:
+    - **Intel VT-x** (CPU virtualisation)
+    - **Intel VT-d** (PCIe/IOMMU passthrough)
+- **Disable CSM/Compatibility Support Module** as above
+- Save and reboot
+
+---
+
+## 2. Find your NVIDIA card and its IDs
 
 ```bash
 lspci -nn | grep -i nvidia
-# O per vedere anche Audio/USB della GPU:
+# Or, to also see the GPU's audio/USB functions:
 lspci -nn | egrep -i 'vga|audio|usb'
 ```
 
-Esempio output:
+Example output:
 ```
 05:00.0 VGA compatible controller [0300]: NVIDIA RTX 2070 [10de:1f02]
 05:00.1 Audio device [0403]: NVIDIA HD Audio [10de:10f9]
 05:00.2 USB controller [0c03]: NVIDIA USB 3.1 Host Controller [10de:1ada]
 05:00.3 Serial bus controller [0c80]: NVIDIA USB Type-C UCSI [10de:1adb]
 ```
-Annota tutti gli IDs (qui: **10de:1f02, 10de:10f9, 10de:1ada, 10de:1adb**).
+Note down all the IDs (here: **10de:1f02, 10de:10f9, 10de:1ada, 10de:1adb**).
 
 ---
 
-## 3. Verifica come boota il sistema
+## 3. Check how the system boots
 
 ```bash
 [ -d /sys/firmware/efi ] && echo "UEFI" || echo "Legacy BIOS"
 ```
-- Se vedi **UEFI** → prosegui con sezione "UEFI"
-- Se vedi **Legacy BIOS** → vedi sezione "GRUB"/legacy più sotto
+- **UEFI** → carry on with the "UEFI" section
+- **Legacy BIOS** → see the "GRUB"/legacy section below
 
 ---
 
-## 📌 Kernel cmdline e “framebuffer” (user friendly)
+## 📌 Kernel cmdline and the framebuffer
 
-Dopo aver stabilito che UEFI è attivo e CSM disabilitato, **puoi migliorare il passthrough pulendo i framebuffer di sistema** che impediscono il corretto detach della GPU.
+Once UEFI is confirmed and CSM is disabled, **you can improve passthrough by clearing the system
+framebuffers** that get in the way of detaching the GPU cleanly.
 
-**Cosa sono?**  
-- “framebuffer” (es. efifb, vesafb) sono driver che permettono al kernel di usare la scheda video per la console grafica.  
-- Se vuoi usare la GPU esclusivamente per le VM, puoi disabilitarli.
+**What are they?**
+- Framebuffers (efifb, vesafb) are drivers that let the kernel use the graphics card for the
+  console.
+- If the GPU is meant exclusively for VMs, you can disable them.
 
-**Come fare su Proxmox UEFI:**
-1. Modifica la cmdline kernel:
+**How to do it on Proxmox UEFI:**
+1. Edit the kernel cmdline:
    ```bash
    nano /etc/kernel/cmdline
    ```
-   Appendi alla riga esistente:
+   Append to the existing line:
    ```
    video=efifb:off,vesafb:off
    ```
-   Risultato finale esempio:
+   The result looks something like:
    ```
    quiet intel_iommu=on iommu=pt video=efifb:off,vesafb:off
    ```
-2. Applica:
+2. Apply it:
    ```bash
    proxmox-boot-tool refresh
    reboot
    ```
-3. (Se usi legacy GRUB: modifica la riga `GRUB_CMDLINE_LINUX_DEFAULT` e poi `update-grub` + reboot)
+3. (On legacy GRUB: edit the `GRUB_CMDLINE_LINUX_DEFAULT` line, then `update-grub` + reboot)
 
-**Cosa cambia?**  
-- Non vedrai più la console grafica sull’host fisico (usa SSH o la GUI web di Proxmox!)
-- Migliora la probabilità che la GPU sia subito “libera” per la guest, senza errori di device busy/reset.
+**What changes?**
+- You no longer get a graphical console on the physical host (use SSH or the Proxmox web GUI)
+- It improves the odds that the GPU is immediately "free" for the guest, without device busy/reset
+  errors.
 
 ---
 
-### **A) UEFI:**  
-Segui la procedura sopra per `/etc/kernel/cmdline` + refresh/reboot.
+### **A) UEFI:**
+Follow the procedure above for `/etc/kernel/cmdline` + refresh/reboot.
 
-### **B) Legacy BIOS (GRUB):**  
-Modifica `/etc/default/grub` così:
+### **B) Legacy BIOS (GRUB):**
+Edit `/etc/default/grub` like this:
 ```
 GRUB_CMDLINE_LINUX_DEFAULT="quiet intel_iommu=on iommu=pt video=efifb:off,vesafb:off"
 ```
-Poi:
+Then:
 ```bash
 update-grub
 reboot
 ```
-Se IOMMU groups non sono separati puoi anche aggiungere `pcie_acs_override=downstream,multifunction`.
+If the IOMMU groups aren't separated, you can also add `pcie_acs_override=downstream,multifunction`.
 
 ---
 
-## 4. Carica i moduli VFIO e lega la GPU a vfio-pci
+## 4. Load the VFIO modules and bind the GPU to vfio-pci
 
-1. **Assicurati che i moduli vengano caricati all’avvio**  
-   (aggiungi in fondo a `/etc/modules` se non già presenti):
+1. **Make sure the modules load at boot**
+   (append to `/etc/modules` if not already there):
    ```
    vfio
    vfio_iommu_type1
    vfio_pci
-   # vfio_virqfd (opzionale, se supportato dal kernel)
+   # vfio_virqfd (optional, if your kernel supports it)
    ```
-   Nota: `vfio_virqfd` è opzionale e il suo avviso non indica un errore nella tua configurazione. Può essere presente in `/etc/modules` ma non disponibile se il pacchetto kernel corrente non include questo modulo. Aggiungilo solo se il modulo esiste fisicamente in `/lib/modules/$(uname -r)` o risulta disponibile con `modinfo vfio_virqfd`.
-2. **Crea/modifica `/etc/modprobe.d/vfio.conf`:**
+   Note: `vfio_virqfd` is optional and a warning about it doesn't mean your configuration is wrong.
+   It can be listed in `/etc/modules` yet be unavailable if the current kernel package doesn't ship
+   that module. Only add it if the module actually exists in `/lib/modules/$(uname -r)` or shows up
+   under `modinfo vfio_virqfd`.
+2. **Create or edit `/etc/modprobe.d/vfio.conf`:**
    ```
    options vfio-pci ids=10de:1f02,10de:10f9,10de:1ada,10de:1adb disable_vga=1
    softdep xhci_hcd pre: vfio-pci
@@ -203,8 +210,8 @@ Se IOMMU groups non sono separati puoi anche aggiungere `pcie_acs_override=dow
    softdep i2c_nvidia_gpu pre: vfio-pci
    ```
 
-3. **Blacklist driver host NVIDIA**
-   File `/etc/modprobe.d/blacklist-nvidia.conf`:
+3. **Blacklist the host NVIDIA drivers**
+   In `/etc/modprobe.d/blacklist-nvidia.conf`:
    ```
    blacklist nvidia
    blacklist nouveau
@@ -213,8 +220,8 @@ Se IOMMU groups non sono separati puoi anche aggiungere `pcie_acs_override=dow
    blacklist nvidia_modeset
    ```
 
-4. **(Opzionale) Forza USB NVIDIA su vfio-pci**  
-   Solo se vedi che 05:00.2/.3 non sono gestite da vfio-pci dopo reboot:
+4. **(Optional) Force the NVIDIA USB functions onto vfio-pci**
+   Only if you see that 05:00.2/.3 aren't handled by vfio-pci after a reboot:
    ```
    nano /etc/modprobe.d/blacklist-nvidiausb.conf
    ```
@@ -223,11 +230,11 @@ Se IOMMU groups non sono separati puoi anche aggiungere `pcie_acs_override=dow
    blacklist xhci_pci
    blacklist i2c_nvidia_gpu
    ```
-   ⚠️ _Può disattivare anche tutte le USB 3.0/3.1 dell’host! Usalo solo se strettamente necessario._
+   ⚠️ _This can also kill all USB 3.0/3.1 on the host. Use it only if you really have to._
 
 ---
 
-## 5. Aggiorna initramfs e reboot
+## 5. Update initramfs and reboot
 
 ```bash
 update-initramfs -u -k all
@@ -236,23 +243,25 @@ reboot
 
 ---
 
-## 📌 Check IOMMU Group separato
+## 📌 Checking for a separate IOMMU group
 
-- Esegui:
+- Run:
   ```bash
   find /sys/kernel/iommu_groups/ -type l | sort
   ```
-- Cerca che tutti e 4 i device 05:00.x siano **nello stesso gruppo** (OK) **e che non ci siano altri device “estranei” nello stesso gruppo!**
-    - Se sì → puoi passare l’intero gruppo/slot PCI senza problemi.
-    - Se la GPU condivide gruppo con altri device non desiderati:
-        - Aggiungi `pcie_acs_override=downstream,multifunction` nella cmdline kernel e ripeti il check.  
-        - Attenzione: questa opzione può abbassare la sicurezza DMA dell’host (solo su mobo desktop e VM “trusted”).
+- Check that all four 05:00.x devices are **in the same group** (good) **and that no unrelated
+  devices share that group**.
+    - If that's the case → you can pass the whole group/PCI slot through without trouble.
+    - If the GPU shares its group with devices you don't want to pass:
+        - Add `pcie_acs_override=downstream,multifunction` to the kernel cmdline and check again.
+        - Careful: this option weakens the host's DMA isolation (desktop boards and trusted VMs
+          only).
 
 ---
 
-## 6. Verifica che i binding vfio siano attivi
+## 6. Verify the vfio bindings are active
 
-Controlla che tutte le funzioni della GPU siano "in use: vfio-pci":
+Check that every function of the GPU shows "in use: vfio-pci":
 
 ```bash
 lspci -nnk -s 05:00.0
@@ -260,24 +269,24 @@ lspci -nnk -s 05:00.1
 lspci -nnk -s 05:00.2
 lspci -nnk -s 05:00.3
 ```
-Devono mostrare in tutti i casi:  
+All of them must report:
 **Kernel driver in use: vfio-pci**
 
 ---
 
-## 7. Assegna le funzioni PCI alla VM
+## 7. Assign the PCI functions to the VM
 
-**Via GUI:**  
+**In the GUI:**
 - VM → Hardware → Add → PCI Device
-    - Includi almeno 05:00.0 e 05:00.1 (aggiungi anche .2 e .3 per passthrough totale)
-    - Spunta “All Functions” se esiste, o aggiungi manualmente tutte le funzioni
-- VM Options:  
+    - Include at least 05:00.0 and 05:00.1 (add .2 and .3 as well for full passthrough)
+    - Tick "All Functions" if present, or add every function by hand
+- VM Options:
     - Machine: q35
     - BIOS: OVMF (UEFI)
     - PCI Express: ON
 
-**Via CLI:**  
-Configura `/etc/pve/qemu-server/<VMID>.conf`:
+**From the CLI:**
+Configure `/etc/pve/qemu-server/<VMID>.conf`:
 ```
 machine: q35
 hostpci0: 0000:05:00,pcie=1,multifunction=on
@@ -285,139 +294,134 @@ hostpci0: 0000:05:00,pcie=1,multifunction=on
 
 ---
 
-## 8. Guest OS e Driver
+## 8. Guest OS and drivers
 
 ### Windows 10/11
-1. Collega un monitor alla GPU  
-2. Installa driver NVIDIA dal sito ufficiale  
-3. Controlla Device Manager  
-4. Se “Code 43”, aggiungi nel config VM:
+1. Connect a monitor to the GPU
+2. Install the NVIDIA driver from the official site
+3. Check Device Manager
+4. On "Code 43", add to the VM config:
    ```
    args: -cpu 'host,kvm=on'
    ```
-   o
+   or
    ```
    hostpci0: ...,hidden=1
    ```
-   *(Proxmox 7+ spesso non serve; legacy o GeForce recenti → vedi troubleshooting)*  
+   *(Often unnecessary on Proxmox 7+; on legacy setups or recent GeForce cards → see
+   troubleshooting)*
 
 ### Linux (Ubuntu/Debian)
-1. Collega monitor  
-2. Installa driver NVIDIA proprietari  
-3. Controlla output con
+1. Connect a monitor
+2. Install the proprietary NVIDIA driver
+3. Check the output of
    ```bash
    nvidia-smi
    ```
 
 ---
 
-## 9. Troubleshooting / Fix Rapidi
+## 9. Troubleshooting / quick fixes
 
-| Problema                              | Possibile causa             | Fix                                                        |
-|----------------------------------------|----------------------------|------------------------------------------------------------|
-| VM non si avvia                       | Driver host in uso         | Verifica “in use: vfio-pci”, rimuovi/blacklista nvidia     |
-| Schermo nero VM, nessun output        | No OVMF/q35, no monitor    | Usa OVMF/q35, collega monitor fisico                       |
-| GPU non compare in guest               | IDs sbagliati, PCI/slot errato| Rivedi ids= in vfio.conf e gruppo IOMMU                      |
-| Audio HDMI non funziona                | Funzione 05:00.1 non passthru | Aggiungi anche 05:00.1 alla VM                           |
-| USB non bindata a vfio-pci             | xhci_hcd/i2c_nvidia_gpu host | Usa softdep o blacklist mirata                             |
-| Host perde USB 3                       | Blacklist xhci globale     | Rimuovi blacklist, usa solo softdep sopra                   |
-| VM funziona una volta poi fail         | Bug reset GPU NV/AMD       | Ferma/avvia VM, vedi vendor-reset module (se ricorrente)    |
-| VM fail con IOMMU                      | Bios o kernel flag mancanti| Verifica VT-d/CSM, ricontrolla kernel cmdline              |
-| Error 43 (NVIDIA Windows)              | Patch anti-cheat mancante  | Usa args kvm=on, hidden=1, vedi opzioni avanzate            |
-| Device condivide IOMMU group           | Hardware, no ACS           | Usa pcie_acs_override (solo se necessario)                  |
-| Problemi boot/rom GPU                  | GPU recente o custom ROM   | Prova romfile=..., rombar=0 in config VM                    |
-| NOvnc non mostra nulla                 | GPU in passthrough         | Serve monitor fisico                                        |
-
----
-
-## 10. Checklist & Verifica
-
-- [ ] BIOS: VT-x (CPU Virtualization) e VT-d abilitati + CSM/Legacy **DISABILITATO**
-- [ ] Kernel flags: `intel_iommu=on iommu=pt` (e, se serve, pcie_acs_override/video=efifb:off) in `/proc/cmdline`
-- [ ] /etc/modules contiene moduli VFIO (vedi sopra)
-- [ ] File `/etc/modprobe.d/vfio.conf` con tutti i device IDs corretti
-- [ ] Driver NVIDIA/Nouveau host blacklistati
-- [ ] La GPU e le sue funzioni sono bindate a vfio-pci su `lspci -nnk`
-- [ ] Gruppo IOMMU separato oppure override se serve
-- [ ] VM configurata q35 + OVMF + tutte le funzioni necessarie in PCI passthrough
-- [ ] Driver guest installati e accelerazione OK
-- [ ] Guest NVIDIA Windows: nessun Code 43 o errori noti (patch se serve)
+| Problem | Likely cause | Fix |
+|---|---|---|
+| VM won't start | Host driver still holding the card | Check for "in use: vfio-pci", remove/blacklist nvidia |
+| Black screen in the VM, no output | No OVMF/q35, or no monitor | Use OVMF/q35, connect a physical monitor |
+| GPU doesn't appear in the guest | Wrong IDs, wrong PCI slot | Re-check `ids=` in vfio.conf and the IOMMU group |
+| HDMI audio doesn't work | Function 05:00.1 not passed through | Add 05:00.1 to the VM as well |
+| USB not bound to vfio-pci | xhci_hcd/i2c_nvidia_gpu on the host | Use softdep, or a targeted blacklist |
+| Host loses USB 3 | Global xhci blacklist | Drop the blacklist, use only the softdep above |
+| VM works once then fails | GPU reset bug (NV/AMD) | Stop/start the VM; see the vendor-reset module if it recurs |
+| VM fails with IOMMU | Missing BIOS or kernel flags | Check VT-d/CSM, re-check the kernel cmdline |
+| Error 43 (NVIDIA on Windows) | Missing anti-detection patch | Use `args kvm=on`, `hidden=1`, see advanced options |
+| Device shares an IOMMU group | Hardware, no ACS | Use pcie_acs_override (only if necessary) |
+| GPU boot/ROM problems | Recent GPU or custom ROM | Try `romfile=...`, `rombar=0` in the VM config |
+| noVNC shows nothing | GPU is passed through | You need a physical monitor |
 
 ---
 
-## 11. Utility: Script di Verifica e Diagnostica Automatica NVIDIA Passthrough
+## 10. Checklist
 
-Questa utility bash verifica **tutte le GPU NVIDIA presenti**, controlla che ogni funzione PCIe sia “bindata” a vfio-pci, **autodetecta slot e gruppi IOMMU**, suggerisce soluzioni e mostra lo stato dei parametri fondamentali della kernel cmdline, evidenziando errori secondo la guida.
+- [ ] BIOS: VT-x (CPU virtualisation) and VT-d enabled, CSM/Legacy **DISABLED**
+- [ ] Kernel flags: `intel_iommu=on iommu=pt` (plus pcie_acs_override / video=efifb:off if needed) in `/proc/cmdline`
+- [ ] /etc/modules contains the VFIO modules (see above)
+- [ ] `/etc/modprobe.d/vfio.conf` has all the right device IDs
+- [ ] Host NVIDIA/Nouveau drivers blacklisted
+- [ ] The GPU and its functions are bound to vfio-pci in `lspci -nnk`
+- [ ] IOMMU group is separate, or overridden where needed
+- [ ] VM configured with q35 + OVMF and every required function passed through
+- [ ] Guest drivers installed and acceleration working
+- [ ] NVIDIA Windows guest: no Code 43 or other known errors (patched if needed)
 
-Vedi file [`check-vfio-bind.sh`](./check-vfio-bind.sh) in questa cartella.
+---
 
-### 📦 Uso
+## 11. Utility: automated NVIDIA passthrough diagnostic script
+
+This bash utility checks **every NVIDIA GPU present**, verifies each PCIe function is bound to
+vfio-pci, **auto-detects slots and IOMMU groups**, suggests fixes, and shows the state of the key
+kernel cmdline parameters, flagging anything that contradicts this guide.
+
+See [`check-vfio-bind.sh`](./check-vfio-bind.sh) in this folder.
+
+### 📦 Usage
 
 ```bash
-# Rendi eseguibile lo script (una tantum)
+# Make the script executable (once)
 chmod +x check-vfio-bind.sh
 
-# Esegui la diagnostica
+# Run the diagnostic
 ./check-vfio-bind.sh
 ```
 
-
-**✅ Questo script rileva tutto in automatico (PCI slot, gruppi, funzioni NVIDIA, parametri kernel), segnala in colore/emoji problemi o warning e suggerisce le azioni dalla tua guida – pronto per troubleshooting anche su setup multi-GPU!**
-
----
-
-Puoi includere questo snippet direttamente nella guida, sostituendo la vecchia sezione, e istruire così:
-
-- **Salva come `check-vfio-bind.sh`**  
-- **Rendi eseguibile:**  
-  `chmod +x check-vfio-bind.sh`  
-- **Esegui:**  
-  `./check-vfio-bind.sh`
+**✅ The script detects everything automatically (PCI slots, groups, NVIDIA functions, kernel
+parameters), flags problems and warnings with colour and emoji, and suggests the matching actions
+from this guide — ready for troubleshooting multi-GPU setups too.**
 
 ---
 
-## 12. Opzioni Avanzate & Trucchi Pro
+## 12. Advanced options and tricks
 
-- **`video=efifb:off,vesafb:off`** – "Libera" la GPU dai framebuffer host.
-- **`pcie_acs_override=downstream,multifunction`** – Per segmentare gruppi IOMMU "misti": SOLO se gruppo non isolato!
-- **Opzione multifunzione (multifunction=on):**
+- **`video=efifb:off,vesafb:off`** – frees the GPU from the host framebuffers.
+- **`pcie_acs_override=downstream,multifunction`** – splits up "mixed" IOMMU groups: ONLY when the
+  group isn't isolated.
+- **Multifunction option (multifunction=on):**
   ```
   hostpci0: 0000:05:00,pcie=1,multifunction=on
   ```
-  Utile per GPU con molte funzioni PCIe (audio, USB ecc).
-- **ROM bar/ROM file:**
+  Useful for GPUs with several PCIe functions (audio, USB, etc.).
+- **ROM bar / ROM file:**
   ```
   hostpci0: 0000:05:00,pcie=1,rombar=0
   hostpci0: ... ,romfile=/path/to/dump.rom
   ```
-- **Error 43 Patch:**
+- **Error 43 patch:**
   ```
   args: -cpu 'host,kvm=on'
   ```
-  o
+  or
   ```
   hostpci0: ...,hidden=1
   ```
-  (Se Code 43 su GeForce in Windows guest)
+  (For Code 43 on a GeForce card in a Windows guest)
 
-- **vendor-reset (Se VM parte solo una volta):**
+- **vendor-reset (when the VM only starts once):**
   - [vendor-reset kernel module](https://github.com/gnif/vendor-reset)
 
-- **Installazione headers kernel custom:**
+- **Installing custom kernel headers:**
   ```
   apt install pve-headers-$(uname -r)
   ```
 
 ---
 
-## 13. Fonti & Riferimenti
+## 13. Sources and references
 
 - [Proxmox PCI Passthrough Wiki](https://pve.proxmox.com/wiki/PCI_Passthrough)
 - [ArchWiki PCI/VFIO](https://wiki.archlinux.org/title/PCI_passthrough_via_OVMF)
-- [Discussione Reddit originale](https://www.reddit.com/r/Proxmox/comments)
 - [NVIDIA Docs](https://docs.nvidia.com/)
-- [K3rn3l-P/utility-scripts](https://github.com/K3rn3l-P/utility-scripts)
+- [K3rn3l-P/sysadmin-field-notes](https://github.com/K3rn3l-P/sysadmin-field-notes)
 
 ---
 
-> **Guida aggiornata e curata da [K3rn3l-P](https://github.com/K3rn3l-P) – se hai dubbi o vuoi integrare, puoi aprire issue/suggestioni sul repo!**
+> **Guide written and maintained by [K3rn3l-P](https://github.com/K3rn3l-P) — questions or
+> additions welcome as issues on the repo.**

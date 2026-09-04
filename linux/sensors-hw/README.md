@@ -1,43 +1,44 @@
-# Sensori temperatura e hardware – Linux
+# Temperature and hardware sensors – Linux
 
-## Scopo
-Guida per installare e usare `lm-sensors` per monitorare temperatura, ventole e valori hardware su Linux.
+## Purpose
+How to install and use `lm-sensors` to monitor temperatures, fans and hardware readings on Linux.
 
-## Prerequisiti
+## Prerequisites
 
-- Sistema Linux con accesso `sudo`
+- A Linux system with `sudo` access
 
-## Installazione
+## Installation
 
 ```bash
 sudo apt update
 sudo apt install lm-sensors -y
 ```
 
-## Rileva sensori
+## Detecting sensors
 
 ```bash
 sudo sensors-detect
 ```
 
-Rispondi `yes` a tutte le domande per rilevare i moduli compatibili.
+Answer `yes` to every question so it picks up all the compatible modules.
 
-## Visualizzazione valori sensori
+## Reading sensor values
 
 ```bash
-sensors -u    # formato numerico
-sensors       # output leggibile
+sensors -u    # numeric format
+sensors       # human-readable output
 ```
 
-## Monitoraggio live
+## Live monitoring
 
 ```bash
 watch -n 2 "sensors | grep -E 'Tctl|Tdie|temp1_input|temp3_input'"
 ```
 
-> Nota: questo filtro è utile soprattutto su AMD/Ryzen. Su molte CPU Intel (es. Xeon) il comando `sensors` mostra invece solo `Package` e `Core N`.
+> Note: this filter is mostly useful on AMD/Ryzen. On many Intel CPUs (Xeon, for instance)
+> `sensors` reports `Package` and `Core N` instead.
 >
-> Per Intel usa:
+> For Intel, use:
 >
 ```bash
 watch -n 2 "sensors | grep -E 'Core|Package'"
@@ -45,26 +46,27 @@ watch -n 2 "sensors | grep -E 'Core|Package'"
 
 ---
 
-## Se i sensori CPU non compaiono
+## If the CPU sensors don't show up
 
-- Carica manualmente il modulo CPU:
+- Load the CPU module by hand:
   ```bash
   sudo modprobe coretemp   # Intel
   sudo modprobe k10temp    # AMD
   ```
-- Se dopo reboot i sensori non compaiono, controlla che la riga `coretemp` o `k10temp` sia presente in `/etc/modules`.
-- Puoi forzare un reload a caldo senza reboot:
+- If they're still missing after a reboot, check that a `coretemp` or `k10temp` line is present in
+  `/etc/modules`.
+- You can force a hot reload without rebooting:
   ```bash
   sudo systemctl restart kmod
   sudo sensors
   ```
-- Se usi kernel custom o hardware più esotico, installa anche `i2c-tools` e verifica i chip con:
+- On a custom kernel or more exotic hardware, also install `i2c-tools` and look for the chips with:
   ```bash
   sudo apt install i2c-tools -y
   sudo i2cdetect -l
   ```
 
-## Solo temperature CPU pulite
+## Just the CPU temperatures, cleanly
 
 ```bash
 sensors | grep -E 'Core|Package'
@@ -72,59 +74,59 @@ sensors | grep -E 'Core|Package'
 
 ---
 
-## Script di monitoraggio live della temperatura CPU
+## Live CPU temperature monitoring script
 
-Se vuoi un controllo continuo con allarmi colore, puoi usare lo script `monitor-cpu-temp.sh`.
+For continuous monitoring with colour alarms, use `monitor-cpu-temp.sh`.
 
-### Uso
+### Usage
 
-1. Salva lo script in `linux/sensors-hw/monitor-cpu-temp.sh`
-2. Rendi eseguibile:
+1. Save the script as `linux/sensors-hw/monitor-cpu-temp.sh`
+2. Make it executable:
    ```bash
    chmod +x monitor-cpu-temp.sh
    ```
-3. Avvia il monitoraggio:
+3. Start monitoring:
    ```bash
    ./monitor-cpu-temp.sh
    ```
-   Puoi passare un intervallo in secondi, ad esempio `./monitor-cpu-temp.sh 5`.
+   You can pass an interval in seconds, e.g. `./monitor-cpu-temp.sh 5`.
 
-### Cosa fa
+### What it does
 
-- mostra le righe `Core N` e `Package` dai sensori
-- usa `OK`, `ALLERTA` e `PERICOLO` nel campo `STATO`
-- evidenzia in giallo le temperature sopra 75°C
-- evidenzia in rosso le temperature sopra 85°C
-- mostra anche una lista di processi top memoria standard (`ps`) per individuare i consumi più alti
-- aggiorna continuamente lo schermo finché non premi Ctrl+C
+- shows the `Core N` and `Package` rows from the sensors
+- uses `OK`, `WARNING` and `DANGER` in the `STATUS` column
+- highlights temperatures above 75°C in yellow
+- highlights temperatures above 85°C in red
+- also lists the top memory-consuming processes (`ps`) so you can spot what's driving the load
+- refreshes the screen continuously until you press Ctrl+C
 
-## Cronologia boot e hang hardware
+## Boot history and hardware hangs
 
 ```bash
-journalctl --list-boots              # elenco boot con orari di inizio/fine
-journalctl -b -N -n 60 --no-pager    # coda log di un boot passato (N negativo, es. -1 = boot precedente)
-journalctl -b -N -p err --no-pager   # solo errori di un boot specifico
+journalctl --list-boots              # list of boots with start/end times
+journalctl -b -N -n 60 --no-pager    # tail of a past boot's log (N negative, e.g. -1 = previous boot)
+journalctl -b -N -p err --no-pager   # errors only, for a specific boot
 ```
 
-> Se la fine di un boot non mostra uno shutdown pulito nel log successivo,
-> è indizio di crash/blocco. Vedi [`e1000e-nic-hang-fix`](../proxmox/e1000e-nic-hang-fix)
-> per un caso concreto (conteggio hang NIC per boot).
+> If the end of a boot doesn't show a clean shutdown in the following log, that's a sign of a crash
+> or a hang. See [`e1000e-nic-hang-fix`](../proxmox/e1000e-nic-hang-fix) for a concrete case
+> (counting NIC hangs per boot).
 
-## Errori termici/hardware nel kernel log
+## Thermal and hardware errors in the kernel log
 
 ```bash
 journalctl -k | grep -iE 'thermal|throttl|mce|Machine Check'
-cat /sys/devices/system/edac/mc/mc*/ce_count   # errori ECC RAM correggibili
-cat /sys/devices/system/edac/mc/mc*/ue_count   # errori ECC RAM non correggibili
+cat /sys/devices/system/edac/mc/mc*/ce_count   # correctable ECC RAM errors
+cat /sys/devices/system/edac/mc/mc*/ue_count   # uncorrectable ECC RAM errors
 ```
 
 ---
 
-## Consigli
+## Tips
 
-- Verifica i valori prima e dopo un carico per identificare eventuali anomalie.
-- Usa `sensors -u` se vuoi integrare output in script di monitoraggio.
+- Compare readings before and after a load to spot anomalies.
+- Use `sensors -u` if you want to feed the output into monitoring scripts.
 
 ---
 
-**Ultimo aggiornamento:** Agosto 2026
+**Last updated:** August 2026

@@ -1,17 +1,18 @@
-# Ripristino VM da backup esterno su Proxmox VE – Linux
+# Restoring a VM from an external backup on Proxmox VE – Linux
 
-## Scopo
-Guida passo-passo per recuperare e ripristinare backup VM da storage esterno (Samba/NFS/SSH) su un host Proxmox.
+## Purpose
+Step-by-step guide to fetching and restoring VM backups from external storage (Samba/NFS/SSH) onto
+a Proxmox host.
 
-## Prerequisiti
+## Prerequisites
 
-- Host Proxmox VE con spazio disponibile su storage di destinazione
-- Backup VM già copiato sul server Proxmox o accessibile via network
-- Permessi root per eseguire `qmrestore`
+- A Proxmox VE host with free space on the destination storage
+- The VM backup already copied to the Proxmox server, or reachable over the network
+- Root permissions to run `qmrestore`
 
-## Procedura completa
+## Full procedure
 
-### 1. Copia backup via SCP
+### 1. Copy the backup over SCP
 
 ```bash
 mkdir -p /tmp/vm-backup
@@ -19,29 +20,29 @@ cd /tmp/vm-backup
 scp root@10.0.0.20:/mnt/WD-P/dump/vzdump-qemu-100-*.vma.zst .
 ```
 
-### 2. Verifica file ricevuto
+### 2. Check the file you received
 
 ```bash
 ls -lh vzdump-qemu-*.vma.zst
 ```
 
-Assicurati che il file sia completo e abbia la dimensione attesa.
+Make sure the file is complete and the size is what you expected.
 
-### 3. Ripristina VM su storage locale
+### 3. Restore the VM onto local storage
 
 ```bash
 qm list
 qmrestore vzdump-qemu-100-2026_03_22-03_00_09.vma.zst 101 --storage local-lvm
 ```
 
-Alternative storage:
+Storage alternatives:
 
 ```bash
 qmrestore vzdump-qemu-100-2026_03_22-03_00_09.vma.zst 101 --storage local
 qmrestore vzdump-qemu-100-2026_03_22-03_00_09.vma.zst 101 --storage SSD
 ```
 
-### 4. Avvia la VM
+### 4. Start the VM
 
 ```bash
 qm list
@@ -49,36 +50,36 @@ qm start 101
 qm status 101
 ```
 
-### 5. Verifica in GUI
+### 5. Check in the GUI
 
 ```
 Datacenter → 101 → Start → Console
 ```
 
-## Opzioni utili di `qmrestore`
+## Useful `qmrestore` options
 
 ```bash
---force          # Sovrascrivi VM esistente
---storage XXX    # Storage destinazione (pvesm status)
---rootfs local:4 # Rootfs container (per CT)
+--force          # overwrite an existing VM
+--storage XXX    # destination storage (pvesm status)
+--rootfs local:4 # container rootfs (for CTs)
 ```
 
-## Risoluzione problemi comuni
+## Common problems
 
-- Storage non trovato:
+- Storage not found:
   ```bash
   pvesm status
   ```
-- File corrotto/incompleto:
+- Corrupt or incomplete file:
   ```bash
   vzdump --restore vzdump-*.vma.zst --list
   ```
-- ID VM duplicato:
+- Duplicate VM ID:
   ```bash
   qm destroy 101 && qmrestore ...
   ```
 
-## Cleanup post-ripristino
+## Cleanup after the restore
 
 ```bash
 rm -rf /tmp/vm-backup/*
@@ -86,12 +87,12 @@ rm -rf /tmp/vm-backup/*
 
 ---
 
-## Consigli
+## Tips
 
-- Usa `qm list` per trovare ID liberi prima di ripristinare.
-- Se usi storage non locale, verifica che lo spazio sia sufficiente e che il pool sia online.
-- Mantieni i backup originali finché la VM non è testata correttamente.
+- Use `qm list` to find free IDs before restoring.
+- On non-local storage, check there's enough space and that the pool is online.
+- Keep the original backups until the VM has been properly tested.
 
 ---
 
-**Ultimo aggiornamento:** Aprile 2026
+**Last updated:** April 2026

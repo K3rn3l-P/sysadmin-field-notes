@@ -146,7 +146,7 @@ output_stats() {
   PROC_PIDS=()
   PROCS=$(nvidia-smi --query-compute-apps=pid,process_name,used_gpu_memory,gpu_uuid --format=csv,noheader,nounits 2>/dev/null | sed '/^[[:space:]]*$/d')
   if [[ -z "$PROCS" ]]; then
-    echo 'Nessun processo GPU trovato.'
+    echo 'No GPU processes found.'
     exit 0
   fi
 
@@ -207,7 +207,7 @@ output_stats() {
     for line in "${GPU_LINES[@]}"; do
       printf '%b\n' "$line"
     done
-    printf '\n%s\n' "${BOLD}Processi con GPU VRAM allocata:${RESET}"
+    printf '\n%s\n' "${BOLD}Processes holding GPU VRAM:${RESET}"
     printf '%-8s %-10s %-5s %-14s %-16s %s\n' "PID" "VRAM(MB)" "GPU" "CONTAINER" "PROCESS" "IMAGE/NAME"
     printf '%-8s %-10s %-5s %-14s %-16s %s\n' "--------" "--------" "---" "--------------" "----------------" "------------------------------"
     for line in "${PROC_LINES[@]}"; do
@@ -244,7 +244,7 @@ output_stats() {
   local proc_start=$((4 + ${#GPU_LINES[@]} + 2))
   if [[ ${#PREV_PROC_LINES[@]} -ne ${#PROC_LINES[@]} || ${PREV_PROC_PIDS[*]} != ${PROC_PIDS[*]} ]]; then
     printf '\033[%s;1H' "$proc_start"
-    printf '%s\n' "${BOLD}Processi con GPU VRAM allocata:${RESET}"
+    printf '%s\n' "${BOLD}Processes holding GPU VRAM:${RESET}"
     printf '%-8s %-10s %-5s %-14s %-16s %s\n' "PID" "VRAM(MB)" "GPU" "CONTAINER" "PROCESS" "IMAGE/NAME"
     printf '%-8s %-10s %-5s %-14s %-16s %s\n' "--------" "--------" "---" "--------------" "----------------" "------------------------------"
     for line in "${PROC_LINES[@]}"; do printf '%b\n' "$line"; done

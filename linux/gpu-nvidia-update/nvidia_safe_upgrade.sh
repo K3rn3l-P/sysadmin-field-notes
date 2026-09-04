@@ -2,10 +2,10 @@
 
 # nvidia_safe_upgrade.sh
 # ----------------------
-# Script per aggiornamento sicuro driver NVIDIA su Debian/Ubuntu/Proxmox.
-# Aggiorna SOLO se tutte le versioni candidate sono allineate.
-# Gestisce hold/unhold automatico dei pacchetti NVIDIA installati.
-# Uso: sudo ./nvidia_safe_upgrade.sh
+# Safe NVIDIA driver upgrade script for Debian/Ubuntu/Proxmox.
+# Upgrades ONLY when every candidate version is aligned.
+# Handles automatic hold/unhold of the installed NVIDIA packages.
+# Usage: sudo ./nvidia_safe_upgrade.sh
 
 set -euo pipefail
 
@@ -43,7 +43,7 @@ function warn() {
 }
 
 function require_cmd() {
-  command -v "$1" >/dev/null 2>&1 || die "Comando richiesto non trovato: $1"
+  command -v "$1" >/dev/null 2>&1 || die "Required command not found: $1"
 }
 
 # ----- Blocco PREFERENCES automatico anti-NVIDIA -----
@@ -81,23 +81,23 @@ APT_TIMERS_DISABLED=0
 
 function ensure_nvidia_pin_block() {
   if [ ! -f "$PIN_FILE" ] || ! diff -q <(echo "$PIN_CONTENT") "$PIN_FILE" >/dev/null 2>&1; then
-    echo ">>> Creo o aggiorno il file pin APT anti-NVIDIA: $PIN_FILE"
+    echo ">>> Creating or updating the anti-NVIDIA APT pin file: $PIN_FILE"
     echo "$PIN_CONTENT" | sudo tee "$PIN_FILE" > /dev/null
   fi
-  sudo chmod 644 "$PIN_FILE" || warn "⚠️ File $PIN_FILE non scrivibile!"
+  sudo chmod 644 "$PIN_FILE" || warn "⚠️ File $PIN_FILE is not writable!"
 }
 
 function disable_nvidia_pin_block() {
   if [ -f "$PIN_FILE" ]; then
-    echo ">>> Disabilito temporaneamente il pin-block NVIDIA."
-    warn "⚠️ PERICOLO: BLOCCO PIN TEMPORANEAMENTE NON ATTIVO!"
+    echo ">>> Temporarily disabling the NVIDIA pin-block."
+    warn "⚠️ DANGER: PIN BLOCK TEMPORARILY INACTIVE!"
     sudo mv "$PIN_FILE" "$PIN_FILE_DISABLED"
   fi
 }
 
 function enable_nvidia_pin_block() {
   if [ -f "$PIN_FILE_DISABLED" ]; then
-    echo ">>> Ripristino il pin-block NVIDIA."
+    echo ">>> Restoring the NVIDIA pin-block."
     sudo mv "$PIN_FILE_DISABLED" "$PIN_FILE"
   fi
 }
@@ -106,8 +106,8 @@ function restore_nvidia_apt_timers() {
   if [ "$APT_TIMERS_DISABLED" -eq 1 ] && command -v systemctl >/dev/null 2>&1; then
     for unit in "${APT_TIMER_UNITS[@]}"; do
       if systemctl list-unit-files --type=timer --no-pager | grep -q "^${unit}"; then
-        echo ">>> Ripristino timer APT: $unit"
-        sudo systemctl start "$unit" >/dev/null 2>&1 || warn "Impossibile riattivare $unit"
+        echo ">>> Restoring APT timer: $unit"
+        sudo systemctl start "$unit" >/dev/null 2>&1 || warn "Could not re-enable $unit"
       fi
     done
   fi
@@ -115,13 +115,13 @@ function restore_nvidia_apt_timers() {
 
 function disable_apt_timers() {
   if ! command -v systemctl >/dev/null 2>&1; then
-    warn "systemctl non disponibile: non posso disabilitare i timer APT."
+    warn "systemctl unavailable: cannot disable the APT timers."
     return
   fi
   for unit in "${APT_TIMER_UNITS[@]}"; do
     if systemctl is-active --quiet "$unit"; then
-      echo ">>> Disabilito temporaneamente il timer APT: $unit"
-      sudo systemctl stop "$unit" >/dev/null 2>&1 || warn "Impossibile fermare $unit"
+      echo ">>> Temporarily disabling APT timer: $unit"
+      sudo systemctl stop "$unit" >/dev/null 2>&1 || warn "Could not stop $unit"
       APT_TIMERS_DISABLED=1
     fi
   done
@@ -129,13 +129,13 @@ function disable_apt_timers() {
 
 function enable_apt_timers() {
   if ! command -v systemctl >/dev/null 2>&1; then
-    warn "systemctl non disponibile: non posso riabilitare i timer APT."
+    warn "systemctl unavailable: cannot re-enable the APT timers."
     return
   fi
   for unit in "${APT_TIMER_UNITS[@]}"; do
     if systemctl list-unit-files --type=timer --no-pager | grep -q "^${unit}"; then
-      echo ">>> Riabilito timer APT: $unit"
-      sudo systemctl start "$unit" >/dev/null 2>&1 || warn "Impossibile avviare $unit"
+      echo ">>> Re-enabling APT timer: $unit"
+      sudo systemctl start "$unit" >/dev/null 2>&1 || warn "Could not start $unit"
     fi
   done
 }
@@ -143,7 +143,7 @@ function enable_apt_timers() {
 function restore_nvidia_pin_block_on_exit() {
   trap '
     if [ -f "$PIN_FILE_DISABLED" ]; then
-      echo "### [WARN] Ripristino automatico del pin-block NVIDIA dopo errore o interruzione."
+      echo "### [WARN] Automatically restoring the NVIDIA pin-block after an error or interruption."
       sudo mv "$PIN_FILE_DISABLED" "$PIN_FILE"
     fi
     restore_nvidia_apt_timers
@@ -160,58 +160,58 @@ function check_nvidia_mismatch() {
   uver="$(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -1 || true)"
 
   if [ -z "$kver" ] || [ -z "$uver" ]; then
-    warn "Impossibile rilevare versioni NVIDIA kernel/userland. Controlla lo stato del driver."
+    warn "Could not determine the NVIDIA kernel/userland versions. Check the driver state."
     return 1
   fi
 
   if [ "$kver" != "$uver" ]; then
-    warn "Mismatch NVIDIA: kernel=$kver userland=$uver. Sistema potenzialmente instabile."
+    warn "NVIDIA mismatch: kernel=$kver userland=$uver. System potentially unstable."
     return 1
   fi
 
-  info "Modulo kernel e userland NVIDIA sono allineati: $kver"
+  info "NVIDIA kernel module and userland are aligned: $kver"
   return 0
 }
 
 function detect_non_apt_nvidia_install() {
   local nvidia_smi_out modinfo_out kver="" uver=""
-  echo "Nessun pacchetto NVIDIA installato trovato via APT/DPKG."
-  echo "== Check driver NVIDIA installati fuori da apt/dpkg =="
+  echo "No installed NVIDIA packages found via APT/DPKG."
+  echo "== Checking for NVIDIA drivers installed outside apt/dpkg =="
 
   nvidia_smi_out="$(nvidia-smi 2>&1 || true)"
   if [[ "$nvidia_smi_out" =~ NVIDIA-SMI ]]; then
-    echo "[INFO] nvidia-smi trovato e funzionante fuori da apt:"
+    echo "[INFO] nvidia-smi found and working outside apt:"
     echo "$nvidia_smi_out"
     uver="$(printf '%s' "$nvidia_smi_out" | awk -F': ' '/Driver Version/ {print $2; exit}' | awk '{print $1}')"
   else
-    echo "[WARN] nvidia-smi non trovato o non funzionante."
+    echo "[WARN] nvidia-smi not found, or not working."
   fi
 
   modinfo_out="$(modinfo nvidia 2>&1 || true)"
   if [[ "$modinfo_out" =~ filename: ]]; then
-    echo "[INFO] modinfo nvidia trovato fuori da apt:"
+    echo "[INFO] modinfo nvidia found outside apt:"
     echo "$modinfo_out" | awk '/^filename:/ || /^version:/'
     kver="$(printf '%s' "$modinfo_out" | awk '/^version:/ {print $2; exit}')"
   else
-    echo "[WARN] modinfo nvidia non trovato o non funzionante."
+    echo "[WARN] modinfo nvidia not found, or not working."
   fi
 
   if [[ -n "$kver" && -n "$uver" ]]; then
     if [[ "$kver" != "$uver" ]]; then
-      echo "[WARN] ⚠️ Mismatch driver fuori da APT: kernel=$kver userland=$uver"
+      echo "[WARN] ⚠️ Driver mismatch outside APT: kernel=$kver userland=$uver"
     else
-      echo "[INFO] Driver fuori da APT allineati: kernel/userland $kver"
+      echo "[INFO] Drivers outside APT are aligned: kernel/userland $kver"
     fi
   elif [[ -n "$uver" ]]; then
-    echo "[INFO] Versione userland NVIDIA rilevata (solo nvidia-smi): $uver"
+    echo "[INFO] NVIDIA userland version detected (nvidia-smi only): $uver"
   elif [[ -n "$kver" ]]; then
-    echo "[INFO] Versione modulo kernel NVIDIA rilevata (solo modinfo): $kver"
+    echo "[INFO] NVIDIA kernel module version detected (modinfo only): $kver"
   else
-    echo "[WARN] Nessun driver NVIDIA rilevato via nvidia-smi o modinfo."
+    echo "[WARN] No NVIDIA driver detected via nvidia-smi or modinfo."
   fi
 
-  echo "[INFO] Driver NVIDIA installati via runfile, snap, flatpak o container non sono gestiti da questo script."
-  echo "[TIP] Per aggiornare/CLEAN/auto-controllare installazioni manuali consulta: https://wiki.debian.org/NvidiaGraphicsDrivers#Uninstallation"
+  echo "[INFO] NVIDIA drivers installed via runfile, snap, flatpak or containers are not managed by this script."
+  echo "[TIP] To update, clean or check manual installations, see: https://wiki.debian.org/NvidiaGraphicsDrivers#Uninstallation"
 }
 
 function hold_nvidia_pkgs() {
@@ -222,7 +222,7 @@ function hold_nvidia_pkgs() {
   if output=$(sudo apt-mark hold "${pkgs[@]}" 2>&1); then
     info "apt-mark hold: ok"
   else
-    warn "Impossibile mettere in hold i pacchetti NVIDIA: $output"
+    warn "Could not hold the NVIDIA packages: $output"
   fi
 }
 
@@ -234,7 +234,7 @@ function unhold_nvidia_pkgs() {
   if output=$(sudo apt-mark unhold "${pkgs[@]}" 2>&1); then
     info "apt-mark unhold: ok"
   else
-    warn "Impossibile rimuovere il blocco hold: $output"
+    warn "Could not remove the hold: $output"
   fi
 }
 
@@ -243,7 +243,7 @@ for cmd in dpkg apt-cache tee awk sudo apt modinfo nvidia-smi; do
 done
 
 if [ "$(id -u)" -ne 0 ]; then
-  die "Esegui questo script come root o con sudo."
+  die "Run this script as root, or with sudo."
 fi
 
 if [ -f "$LOG_FILE" ] && [ "$(wc -c <"$LOG_FILE")" -gt "$LOG_MAX_BYTES" ]; then
@@ -262,22 +262,22 @@ if [ ${#PKGS[@]} -eq 0 ]; then
   exit 0
 fi
 
-info "Logging output anche su: $LOG_FILE"
-info "NOTA: I driver NVIDIA sono sempre protetti da upgrade accidentali tramite apt-mark hold."
-info "Pacchetti NVIDIA rilevati: ${PKGS[*]}"
+info "Also logging output to: $LOG_FILE"
+info "NOTE: the NVIDIA drivers are always protected from accidental upgrades by apt-mark hold."
+info "NVIDIA packages detected: ${PKGS[*]}"
 hold_nvidia_pkgs "${PKGS[@]}"
 
 echo
-info "==== Verifica mismatch NVIDIA prima dell'upgrade ===="
+info "==== Checking for an NVIDIA mismatch before the upgrade ===="
 if ! check_nvidia_mismatch; then
-  warn "Mismatch rilevato. Si consiglia di risolvere prima di procedere con l'upgrade."
+  warn "Mismatch detected. Best to resolve it before going ahead with the upgrade."
 fi
 
-info "Repository attivi:"
+info "Active repositories:"
 grep -h '^deb ' /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null || true
 
 echo
-info "==== Verifica versione pacchetti NVIDIA ===="
+info "==== Checking NVIDIA package versions ===="
 ALL_OK=1
 REF_VER=""
 for PKG in "${PKGS[@]}"; do
@@ -286,7 +286,7 @@ for PKG in "${PKGS[@]}"; do
   INST=$(printf '%s' "$policy" | awk '/Installed:/ {print $2; exit}')
 
   if [ -z "$CAND" ] || [ "$CAND" == "(none)" ]; then
-    warn "  $PKG: Installed: ${INST:-none}  |  Candidate: NON DISPONIBILE"
+    warn "  $PKG: Installed: ${INST:-none}  |  Candidate: NOT AVAILABLE"
     ALL_OK=0
     continue
   fi
@@ -302,43 +302,43 @@ done
 
 echo
 if [ "$ALL_OK" -eq 1 ]; then
-  info "✅ Tutte le versioni candidate coincidono: $REF_VER"
+  info "✅ All candidate versions match: $REF_VER"
   read -r -p "Procedo con install/upgrade di TUTTI i pacchetti NVIDIA? [y/N] " RESP
   if [[ "$RESP" =~ ^[Yy]$ ]]; then
-    info "Disabilito temporaneamente il pin-block NVIDIA e i timer APT automatici, quindi sblocco i pacchetti per upgrade atomico..."
+    info "Temporarily disabling the NVIDIA pin-block and the automatic APT timers, then unholding the packages for an atomic upgrade..."
     disable_nvidia_pin_block
     disable_apt_timers
     unhold_nvidia_pkgs "${PKGS[@]}"
     set -x
     if ! sudo apt install -y "${PKGS[@]}"; then
       set +x
-      info "Ripristino del pin-block NVIDIA, riattivo i timer APT e il blocco hold dei pacchetti..."
+      info "Restoring the NVIDIA pin-block, re-enabling the APT timers and re-holding the packages..."
       enable_nvidia_pin_block
       enable_apt_timers
       hold_nvidia_pkgs "${PKGS[@]}"
-      die "Aggiornamento driver fallito. Controlla $LOG_FILE per dettagli."
+      die "Driver upgrade failed. Check $LOG_FILE for details."
     fi
     set +x
-    info "Ripristino del pin-block NVIDIA, riattivo i timer APT e il blocco hold dei pacchetti..."
+    info "Restoring the NVIDIA pin-block, re-enabling the APT timers and re-holding the packages..."
     enable_nvidia_pin_block
     enable_apt_timers
     hold_nvidia_pkgs "${PKGS[@]}"
     if check_nvidia_mismatch; then
-      info "Driver aggiornati e mismatch risolto."
+      info "Drivers upgraded and the mismatch is resolved."
     else
-      warn "Controlla il mismatch dei driver dopo l'installazione."
+      warn "Check the driver mismatch after installation."
     fi
-    info "Driver aggiornati. Controlla eventuali messaggi di apt e riavvia il sistema se necessario."
+    info "Drivers upgraded. Check any apt messages and reboot if needed."
     if [ -f /var/run/reboot-required ] || [ -f /var/run/reboot-required.pkgs ]; then
-      warn "Riavvio raccomandato: il sistema richiede un reboot per completare la configurazione dei pacchetti."
+      warn "Reboot recommended: the system needs one to finish configuring the packages."
       REBOOT_PENDING=1
     fi
   else
-    warn "Upgrade ignorato (abortito dall'utente)."
+    warn "Upgrade skipped (aborted by the user)."
   fi
 else
-  warn "❌ WARNING: Le versioni candidate NON combaciano tra i pacchetti chiave."
-  warn "Nessun aggiornamento verrà eseguito. CONTROLLA I REPOSITORY e attendi allineamento."
+  warn "❌ WARNING: the candidate versions do NOT match across the key packages."
+  warn "No upgrade will be performed. CHECK THE REPOSITORIES and wait for them to line up."
   EXIT_CODE=1
 fi
 

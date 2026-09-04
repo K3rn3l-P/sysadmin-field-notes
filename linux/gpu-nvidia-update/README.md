@@ -1,58 +1,60 @@
-Questo è lo standard ufficiale per sistema NVIDIA con APT.
+This is the standard approach for an APT-managed NVIDIA system.
 
-# Aggiornamento Sicuro NVIDIA GPU (Debian/Ubuntu, VM, Proxmox, Passthrough)
+# Safe NVIDIA GPU upgrade (Debian/Ubuntu, VM, Proxmox, passthrough)
 
-Script `nvidia_safe_upgrade.sh`: aggiorna i driver NVIDIA solo se tutte le versioni candidate sono allineate (fail-safe).
+The `nvidia_safe_upgrade.sh` script upgrades the NVIDIA drivers only when every candidate version
+lines up (fail-safe).
 
-## Scenari/Motivazione
+## When and why
 
-- Sistemi VM o hardware fisico con GPU NVIDIA, soprattutto se usati in Proxmox (PCI passthrough), LLM, AI, Docker runtime GPU.
-- Evita rotture comuni delle dipendenze NVIDIA dopo aggiornamenti/disallineamenti dei repo Debian/CUDA.
+- VMs or bare metal with an NVIDIA GPU, especially under Proxmox (PCI passthrough), LLM/AI
+  workloads, or the Docker GPU runtime.
+- Avoids the usual NVIDIA dependency breakage after upgrades or Debian/CUDA repo drift.
 
-## Prerequisiti
+## Prerequisites
 
 - Bash, APT
-- Permessi sudo/root
-- Debian, Ubuntu, oppure container VM supportate
+- sudo/root permissions
+- Debian, Ubuntu, or a supported VM/container
 
-## Come usare
+## Usage
 
-1. Esegui: `chmod +x nvidia_safe_upgrade.sh && ./nvidia_safe_upgrade.sh`
-2. Verifica risultato: aggiorna solo se tutte le versioni sono uguali
-3. In caso contrario **NON AGGIORNA** nulla: sicurezza totale
+1. Run: `chmod +x nvidia_safe_upgrade.sh && ./nvidia_safe_upgrade.sh`
+2. Check the result: it only upgrades when all versions match
+3. Otherwise it **UPGRADES NOTHING** — fail-safe by design
 
-## Uso automatico / cron
+## Unattended use / cron
 
-Questa cartella include anche lo script automatico `nvidia_safe_upgrade_auto.sh`, pensato per esecuzione da cron.
+This folder also ships `nvidia_safe_upgrade_auto.sh`, meant to be run from cron.
 
-1. Rendi eseguibile lo script:
+1. Make the script executable:
    - `chmod +x nvidia_safe_upgrade_auto.sh`
-2. Modifica il crontab di root:
+2. Edit root's crontab:
    - `sudo crontab -e`
-   - Se `crontab` non è installato su Debian/Ubuntu minimal, esegui prima:
+   - If `crontab` isn't installed on a minimal Debian/Ubuntu, first run:
      - `sudo apt update && sudo apt install -y cron`
      - `sudo systemctl enable --now cron`
-3. Aggiungi una riga come questa per farlo partire ogni domenica alle 02:00:
-   - `0 2 * * 0 /usr/bin/env bash /path/to/utility-scripts/linux/gpu-nvidia-update/nvidia_safe_upgrade_auto.sh`
-4. Controlla i log in `linux/gpu-nvidia-update/nvidia_safe_upgrade_auto.log`.
+3. Add a line like this to run it every Sunday at 02:00:
+   - `0 2 * * 0 /usr/bin/env bash /path/to/sysadmin-field-notes/linux/gpu-nvidia-update/nvidia_safe_upgrade_auto.sh`
+4. Check the logs in `linux/gpu-nvidia-update/nvidia_safe_upgrade_auto.log`.
 
-### Opzione alternativa: systemd timer
-Se il tuo sistema usa `systemd`, puoi usare un timer invece di `cron`.
+### Alternative: a systemd timer
+If your system uses `systemd`, a timer works instead of `cron`.
 
-1. Crea `/etc/systemd/system/nvidia-safe-upgrade.service` con:
+1. Create `/etc/systemd/system/nvidia-safe-upgrade.service` with:
    ```ini
    [Unit]
-   Description=Aggiornamento sicuro driver NVIDIA automatico
+   Description=Automatic safe NVIDIA driver upgrade
 
    [Service]
    Type=oneshot
-   ExecStart=/usr/bin/env bash /path/to/utility-scripts/linux/gpu-nvidia-update/nvidia_safe_upgrade_auto.sh
+   ExecStart=/usr/bin/env bash /path/to/sysadmin-field-notes/linux/gpu-nvidia-update/nvidia_safe_upgrade_auto.sh
    ```
 
-2. Crea `/etc/systemd/system/nvidia-safe-upgrade.timer` con:
+2. Create `/etc/systemd/system/nvidia-safe-upgrade.timer` with:
    ```ini
    [Unit]
-   Description=Timer per nvidia-safe-upgrade.service
+   Description=Timer for nvidia-safe-upgrade.service
 
    [Timer]
    OnCalendar=Sun 02:00
@@ -62,66 +64,79 @@ Se il tuo sistema usa `systemd`, puoi usare un timer invece di `cron`.
    WantedBy=timers.target
    ```
 
-3. Abilita e avvia il timer:
+3. Enable and start the timer:
    ```bash
    sudo systemctl daemon-reload
    sudo systemctl enable --now nvidia-safe-upgrade.timer
    sudo systemctl status nvidia-safe-upgrade.timer
    ```
 
-4. Visualizza i log del servizio con:
+4. Read the service logs with:
    ```bash
    journalctl -u nvidia-safe-upgrade.service
    ```
 
-> Nota: con le versioni correnti di `nvidia_safe_upgrade.sh` e `nvidia_safe_upgrade_auto.sh`, tutte le funzioni di rilevamento dinamico dei pacchetti NVIDIA, gestione hold/unhold e controllo mismatch kernel/userland sono già integrate.
-> Non è più necessario usare script separati come `nvidia_hold_all.sh`, `nvidia_unhold_all.sh` o `nvidia_mismatch_check.sh`.
+> Note: in the current versions of `nvidia_safe_upgrade.sh` and `nvidia_safe_upgrade_auto.sh`, all
+> the dynamic NVIDIA package detection, hold/unhold handling and kernel/userland mismatch checking
+> is already built in.
+> Separate scripts such as `nvidia_hold_all.sh`, `nvidia_unhold_all.sh` or
+> `nvidia_mismatch_check.sh` are no longer needed.
 >
-> Questi script gestiscono automaticamente:
-> - creazione/aggiornamento di `/etc/apt/preferences.d/99-nvidia-block`
-> - disabilitazione temporanea del pin-block NVIDIA prima dell'upgrade atomico
-> - riabilitazione automatica del pin-block anche su errore o interruzione
-> - hold/unhold dinamico di tutti i pacchetti NVIDIA installati rilevati in modo non statico
-> - controllo mismatch kernel/userland NVIDIA prima e dopo l'upgrade
-> - stop/start automatico di `apt-daily.timer` e `apt-daily-upgrade.timer` durante l'upgrade atomico
-> - log iniziale sempre attivo: anche se non ci sono pacchetti APT NVIDIA, viene creato il log
-> - verifica manuale di `nvidia-smi` e `modinfo nvidia` quando non ci sono pacchetti APT trovati
+> These scripts handle automatically:
+> - creating and updating `/etc/apt/preferences.d/99-nvidia-block`
+> - temporarily lifting the NVIDIA pin-block before the atomic upgrade
+> - restoring the pin-block automatically, even on error or interruption
+> - dynamic hold/unhold of every installed NVIDIA package, detected rather than hard-coded
+> - checking for an NVIDIA kernel/userland mismatch before and after the upgrade
+> - stopping and restarting `apt-daily.timer` and `apt-daily-upgrade.timer` around the atomic upgrade
+> - an initial log entry always: the log is created even when there are no NVIDIA APT packages
+> - falling back to checking `nvidia-smi` and `modinfo nvidia` by hand when no APT packages are found
 >
-> In pratica: `apt update && apt upgrade` aggiorna Debian/Docker/CasaOS senza toccare i pacchetti NVIDIA gestiti dagli script.
+> In practice: `apt update && apt upgrade` updates Debian/Docker/CasaOS without touching the NVIDIA
+> packages these scripts manage.
 >
-> Se nel log compare `Candidate: NON DISPONIBILE` o viene segnalato un mismatch, i driver NVIDIA sono bloccati e verranno aggiornati solo quando un repository ufficiale compatibile sarà nuovamente disponibile.
+> If the log shows `Candidate: NOT AVAILABLE`, or reports a mismatch, the NVIDIA drivers are held
+> and will only be upgraded once a compatible official repository is available again.
 >
-> I log includono anche la lista dei repository APT attivi e i pacchetti NVIDIA/CUDA installati senza candidate disponibili.
+> The logs also list the active APT repositories and any installed NVIDIA/CUDA packages with no
+> candidate available.
 >
-> Se stai usando una VM/container Debian/Ubuntu minimal senza `cron`, installa `cron` con `sudo apt install -y cron` e abilitalo con `sudo systemctl enable --now cron`.
-> In alternativa, puoi preferire un `systemd timer` se nel tuo ambiente è già disponibile `systemd`.
+> On a minimal Debian/Ubuntu VM or container without `cron`, install it with
+> `sudo apt install -y cron` and enable it with `sudo systemctl enable --now cron`.
+> Alternatively, prefer a `systemd` timer if `systemd` is already available in your environment.
 
 ---
 
-## 📚 Guida installazione pulita NVIDIA
+## 📚 Clean NVIDIA install guide
 
-Per la guida dettagliata su come **installare i driver NVIDIA da zero in modo sicuro** su Debian/Proxmox/VM, vedi:
+For the detailed guide on **installing the NVIDIA drivers from scratch, safely**, on
+Debian/Proxmox/VM, see:
 
-➡️ [Guida Installazione Driver NVIDIA](../gpu-nvidia-install-guide/)
+➡️ [NVIDIA driver installation guide](../gpu-nvidia-install-guide/)
 
-## Criticità / limiti
+## Caveats and limits
 
-In uso non-interattivo (cron/script) lo script registra tutto sul log per consentire auditing.
-Attenzione a dove viene scritto `nvidia_safe_upgrade_auto.log` e ai permessi di scrittura: con permessi diversi il percorso potrebbe cambiare e il file può crescere nel tempo.
+Run non-interactively (cron/scripts), everything goes to the log so it can be audited.
+Watch where `nvidia_safe_upgrade_auto.log` is written and what the write permissions are: under
+different permissions the path may change, and the file grows over time.
 
-Lo script automatico include una rotazione log semplice: se il file supera 1MB, mantiene solo le ultime 1000 righe.
+The automatic script does simple log rotation: past 1 MB, it keeps only the last 1000 lines.
 
-Entrambi gli script ora applicano automaticamente `apt-mark hold` ai pacchetti NVIDIA all'avvio e rimuovono temporaneamente il blocco solo durante l'aggiornamento atomico, poi lo ripristinano subito dopo.
+Both scripts now apply `apt-mark hold` to the NVIDIA packages at startup, lift it only for the
+atomic upgrade, and put it straight back afterwards.
 
-In caso di aggiornamento riuscito, lo script segnala se è richiesto un reboot per completare la configurazione dei driver NVIDIA.
+On a successful upgrade, the script reports whether a reboot is needed to finish configuring the
+NVIDIA drivers.
 
-Lo script automatico esce con codice 1 se trova mismatch o se è raccomandato il reboot, e codice 2 in caso di errore `apt-get`.
+The automatic script exits with code 1 on a mismatch or when a reboot is recommended, and code 2 on
+an `apt-get` error.
 
-## Risoluzione problemi
+## Troubleshooting
 
-- Se lo script segnala versioni diverse, non installare driver, attendi allineamento pacchetti nei repo
-- Fai sempre un backup o snapshot della VM/sistema prima
+- If the script reports differing versions, don't install the drivers — wait for the repo packages
+  to line up
+- Always take a backup or a VM snapshot first
 
-## Estendibile
+## Extending it
 
-Puoi aggiungere pacchetti chiave NVIDIA nella lista dello script, secondo il tuo scenario hardware/VM.
+You can add key NVIDIA packages to the script's list to suit your own hardware/VM setup.

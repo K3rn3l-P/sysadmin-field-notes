@@ -1,261 +1,270 @@
-# Scelta dei dischi in Proxmox (1 SSD + 4 dischi aggiuntivi)
+# Choosing a disk layout in Proxmox (1 SSD + 4 extra disks)
 
-Ottima domanda: la scelta e la strutturazione dei dischi in Proxmox dipende molto dagli scenari d’uso, dalle prestazioni richieste, dalla semplicità di gestione e anche dalla tua conoscenza degli strumenti. Di seguito una panoramica **pratica e ragionata** sulle opzioni principali – escludiamo ZFS come richiesto – con indicazioni su come integrare e organizzare 1 SSD + 4 dischi aggiuntivi.
-
----
-
-## 1. **Punti fondamentali da valutare**
-
-- **SSD**: Perfetto come storage veloce per i dischi delle VM più usate, partizioni di sistema (root), o magari cache.
-- **Dischi aggiuntivi (4x HDD o SSD?)**: Dipende se sono meccanici o SSD. Gli HDD di solito meglio usarli come storage "bulk".
-- **Ridondanza/Backup**: RAID software? Copie di sicurezza? Vuoi tolleranza ai guasti?
-- **Gestione snapshot, thin provisioning**: Per snapshot/rollback facili meglio LVM-Thin.
-- **Performance**: VM sensibili alla latenza o è tutto “best effort”?
-- **Semplicità**: Devi amministrare da solo, preferisci semplicità.
+How to lay out disks in Proxmox depends heavily on the use case, the performance you need, how
+simple you want management to be, and how comfortable you are with the tools. What follows is a
+practical rundown of the main options — ZFS included for comparison — with notes on organising
+1 SSD plus 4 additional disks.
 
 ---
 
-## 2. **Opzioni principali (escludendo ZFS)**
+## 1. What to weigh up first
 
-### 🔹 **LVM**
-
-- **PRO:** Gestione semplice, supporto snapshot basilare (non come LVM-Thin), robusto e diffusissimo.
-- **CONTRO:** Ogni volta che crei un disco virtuale (LV) lo spazio viene allocato subito ("thick"). Migliore per storage classico/VM “importanti”.
-
-### 🔹 **LVM-Thin**
-
-- **PRO:** Supporta snapshot avanzati, thin provisioning (crei dischi virtuali ‘grandi’ ma lo spazio viene occupato solo sui dati reali scritti).
-- **CONTRO:** Se non monitori la saturazione, rischio di “overprovisioning”: se il thin pool si riempie Proxmox può stoppare le VM.
-- **USO:** Ideale per VM in sviluppo, testing, ambiente dinamico o dove servono snapshot frequenti.
-
-### 🔹 **Directory (Cartella)**
-
-- **PRO:** Massima compatibilità, puoi accedervi come da qualsiasi sistema Linux, facile fare backup con rsync.
-- **CONTRO:** Non supporti snapshot nativi su ext4 (a meno di usare btrfs/xfs), nessun thin provisioning.
+- **SSD**: ideal as fast storage for the disks of frequently-used VMs, system (root) partitions, or
+  cache.
+- **Extra disks (4x HDD or SSD?)**: depends on whether they're spinning or solid state. HDDs are
+  usually better used as bulk storage.
+- **Redundancy/backup**: software RAID? Backup copies? Do you want fault tolerance?
+- **Snapshots and thin provisioning**: for easy snapshots and rollbacks, LVM-Thin.
+- **Performance**: are the VMs latency-sensitive, or is everything best-effort?
+- **Simplicity**: if you administer it alone, simplicity has real value.
 
 ---
 
-Perfetto, ecco una panoramica approfondita che **aggiunge pro/contro di ZFS**, quando e come conviene usarlo su Proxmox, e un confronto pratico con le altre opzioni già discusse. Troverai anche suggerimenti su **come impostare ZFS** qualora ti venga voglia di provarlo in futuro.
+## 2. The main options
+
+### 🔹 LVM
+
+- **Pros:** simple to manage, basic snapshot support (not like LVM-Thin), robust and very widely
+  used.
+- **Cons:** every virtual disk (LV) allocates its space up front ("thick"). Better for classic
+  storage and "important" VMs.
+
+### 🔹 LVM-Thin
+
+- **Pros:** advanced snapshots, thin provisioning (you create "large" virtual disks but only the
+  data actually written takes up space).
+- **Cons:** without monitoring you risk overprovisioning: if the thin pool fills up, Proxmox may
+  stop the VMs.
+- **Use for:** development and testing VMs, dynamic environments, or anywhere you need frequent
+  snapshots.
+
+### 🔹 Directory
+
+- **Pros:** maximum compatibility, reachable like any Linux folder, easy to back up with rsync.
+- **Cons:** no native snapshots on ext4 (unless you go btrfs/xfs), no thin provisioning.
 
 ---
 
-# 🗂️ **Confronto tra ZFS, LVM, LVM-Thin e Directory in Proxmox VE**
+# 🗂️ ZFS compared with LVM, LVM-Thin and Directory in Proxmox VE
 
 ---
 
-## ⏺️ **ZFS**
+## ⏺️ ZFS
 
-### **Pro di ZFS**
-- 🛡️ **Integrità dei dati**: ZFS controlla costantemente la validità dei dati e rileva (e corregge!) bit-rot e corruzione.
-- 🔄 **Snapshot e clone estremamente efficienti**: puoi creare snapshot ultra-rapidi e rollback istantanei.
-- 💾 **Compressione trasparente**: risparmi spazio senza sforzo, abilitando ad esempio `lz4` o `zstd`.
-- ⚡ **Prestazioni e parallellismo (copy-on-write)**: ottimo su server con molta RAM e CPU decente.
-- 🧰 **RAID software flessibile** (RAID-Z, mirror, stripe... tutto integrato!).
-- 🔁 **Replicazione semplice**: ottimo se hai più nodi o vuoi fare “replica”.
+### Pros
+- 🛡️ **Data integrity**: ZFS constantly validates data and detects (and repairs) bit-rot and
+  corruption.
+- 🔄 **Very efficient snapshots and clones**: near-instant snapshots and rollbacks.
+- 💾 **Transparent compression**: saves space effortlessly with `lz4` or `zstd`.
+- ⚡ **Performance and parallelism (copy-on-write)**: excellent on servers with plenty of RAM and a
+  decent CPU.
+- 🧰 **Flexible software RAID** (RAID-Z, mirror, stripe — all built in).
+- 🔁 **Easy replication**: great across multiple nodes, or for replica setups.
 
-### **Contro di ZFS**
-- 🗄️ **Consumo di RAM elevato**: ZFS richiede **minimo 8 GB** di RAM consigliati su installazioni di produzione, meglio ancora se più.
-- 📦 **"Sprecato" su dischi piccoli**: su SSD/HDD di poca capienza, spesso lo spazio effettivo disponibile si riduce molto causa metadata/ZIL/overhead.
-- ⚠️ **Non usare sopra device già partizionati/gestiti da altro**: ZFS funziona meglio se hai i dischi dedicati interamente.
-- ⚙️ **Richiede confidenza con snapshot/replica/RAID ZFS**: più potente = più complesso.
-- 🛠️ **Ridurre il pool è difficile**: una volta creato non si può rimuovere facilmente un singolo disco da un pool ZFS.
-
----
-
-## ⏺️ **Quando usare ZFS**
-- Vuoi **altissima affidabilità** e integrità dati (soprattutto per VM che ospitano servizi critici oppure filesystem condivisi).
-- Necessiti di **snapshot frequenti**, cloni veloci e possibilità di rollback multipli.
-- Vuoi semplificare RAID e gestione, lasciando tutto in mano a ZFS (RAID-Z1, Z2 ecc.).
-- Hai >8GB di RAM libera **dedicata** al server, meglio se molta di più se hai tante VM/container o pool grandi.
+### Cons
+- 🗄️ **High RAM usage**: ZFS wants **at least 8 GB** of RAM on production installs, ideally more.
+- 📦 **Wasteful on small disks**: on low-capacity SSDs/HDDs, usable space shrinks noticeably because
+  of metadata/ZIL/overhead.
+- ⚠️ **Don't layer it on already-partitioned or otherwise-managed devices**: ZFS works best with
+  whole dedicated disks.
+- ⚙️ **Needs confidence with ZFS snapshots/replication/RAID**: more powerful means more complex.
+- 🛠️ **Shrinking a pool is hard**: once created, removing a single disk from a ZFS pool isn't easy.
 
 ---
 
-## ⏺️ **Come configurare ZFS su nuovi dischi in Proxmox**
+## ⏺️ When ZFS is the right call
+- You want **very high reliability** and data integrity (especially for VMs hosting critical
+  services or shared filesystems).
+- You need **frequent snapshots**, fast clones, and multiple rollback points.
+- You want RAID and management simplified, all handled by ZFS (RAID-Z1, Z2, etc.).
+- You have >8 GB of RAM free and **dedicated** to the server — considerably more if you run many
+  VMs/containers or large pools.
 
-**Procedura tipica:**
+---
 
-1. **Cancella eventuale partizionamento sui dischi**
+## ⏺️ Setting up ZFS on new disks in Proxmox
+
+**Typical procedure:**
+
+1. **Wipe any existing partitioning on the disks**
    ```bash
    wipefs -a /dev/sdX
    ```
 
-2. **Crea un nuovo pool ZFS**
-   - (Esempio, pool RAID1 su due SSD:)
+2. **Create a new ZFS pool**
+   - (Example, a RAID1 pool across two SSDs:)
      ```bash
      zpool create -f -o ashift=12 datapool mirror /dev/sdb /dev/sdc
      ```
-   - (RAIDZ su quattro dischi)
+   - (RAIDZ across four disks)
      ```bash
      zpool create -f -o ashift=12 bigpool raidz1 /dev/sdb /dev/sdc /dev/sdd /dev/sde
      ```
 
-3. **Aggiungi il pool a Proxmox**
-   - Da GUI: Datacenter → Storage → Add → ZFS, scegli nome pool (es. `datapool`), seleziona tipo (`ZFS` per file o `ZFS-Thin` per block storage).
+3. **Add the pool to Proxmox**
+   - In the GUI: Datacenter → Storage → Add → ZFS, pick the pool name (e.g. `datapool`) and the
+     type (`ZFS` for file storage, `ZFS-Thin` for block storage).
 
-4. **Abilita compressione (best practice)**
+4. **Enable compression (best practice)**
    ```bash
    zfs set compression=lz4 datapool
    ```
 
 ---
 
-### **Pro/Contro ZFS vs LVM/LVM-Thin/Directory – Tabella Riassuntiva**
+### Summary table
 
-| Tipo | Vantaggi principali | Svantaggi principali | Perché usarlo |
-|------|---------------------|----------------------|----------------|
-| ZFS | Massima integrità, snapshots, raid integrato, compressione | Richiede RAM, spazio overhead, un po' complesso | Storage critico, esigenze snapshot |
-| LVM | Semplice, robusto, snapshot basilari, diffusissimo | Thick provisioning, snapshot e rollback limitati | VM e storage “classici” |
-| LVM-Thin | Thin provisioning, snapshot veloci per VM e CT | Attento a saturazione pool | Ambiente dinamico, sviluppo |
-| Directory | Semplice, visibile come cartelle Linux, accesso diretto | Niente snapshot nativi, no thin provisioning | ISO, backup, sharing, container |
-
----
-
-## ⏺️ **Come scegliere nel tuo caso (SSD + 4 dischi)**
-
-**Se vuoi ridondanza:**
-ZFS è il **top** per dati **mission critical**, ma hai ragione: su molti dischi piccoli si “mangia” più spazio e RAM.
-- Su pool di 4 dischi: puoi fare RAIDZ1 (1 parità) → perdi lo spazio di 1 disco su 4, ma hai sicurezza e snapshot/rollback senza fatica.
-
-**Se vuoi massima semplicità/compatibilità:**
-Vai di **LVM-Thin su SSD** per VM “importanti”,
- e/o **LVM classic/Directory/RAID software** sugli altri dischi per storage “bulk”.
-
-**Se vuoi flessibilità:**
-- Puoi mischiare! SSD → LVM-Thin;
-- RAID5/RAID10 con mdadm+LVM sugli HDD per bulk;
-- ZFS su pool separato futuro (anche solo per backup/snapshot).
+| Type | Main advantages | Main drawbacks | Why use it |
+|------|-----------------|----------------|------------|
+| ZFS | Best integrity, snapshots, built-in RAID, compression | Wants RAM, space overhead, somewhat complex | Critical storage, snapshot-heavy needs |
+| LVM | Simple, robust, basic snapshots, ubiquitous | Thick provisioning, limited snapshots and rollback | "Classic" VMs and storage |
+| LVM-Thin | Thin provisioning, fast snapshots for VMs and CTs | Watch out for pool saturation | Dynamic and development environments |
+| Directory | Simple, visible as plain Linux folders, direct access | No native snapshots, no thin provisioning | ISOs, backups, sharing, containers |
 
 ---
 
-## ⏺️ **Integrazione Proxmox — Best Practice**
+## ⏺️ Choosing for this case (SSD + 4 disks)
 
-- Se scegli **ZFS**, dedicalo a pool di VM/container importanti, non mescolarlo con LVM (un disco, meglio solo in un tipo di gestione).
-- Usa **ZFS-Thin** se vuoi creare “Zvol” (volumi bloccati per VM) e snapshot advanced per VM.
-- Abilita **compressione** e **monitoraggio pool** (spazio/resilver).
-- Per backup usa uno storage separato, magari una Directory o un ZFS secondario.
-- **Non formattare/distribuire i dischi ZFS da utility esterne**: tutto da zpool!
+**If you want redundancy:**
+ZFS is the **strongest** option for **mission-critical** data, but on many small disks it does eat
+more space and RAM.
+- On a 4-disk pool: RAIDZ1 (single parity) costs you the capacity of 1 disk in 4, and gives you
+  safety plus effortless snapshots and rollback.
 
----
+**If you want maximum simplicity and compatibility:**
+Use **LVM-Thin on the SSD** for the "important" VMs, and/or **classic LVM / Directory / software
+RAID** on the other disks for bulk storage.
 
-## ⏺️ **Conclusione: ZFS in sintesi**
-
-- Pro: Sicurezza massima dati, snapshot potenti, compressione, RAID in un unico sistema.
-- Contro: Richiede risorse di sistema (>8 GB RAM, molta CPU sotto carico), spazio utile ridotto su pool piccoli, più “complesso”.
-
-**Se in futuro vorrai testarlo:**
-Basta aggiungere almeno 2 dischi dedicati e gestire tutto con ZFS (evitando mix con LVM sullo stesso disco).
-Raccomandato su server di produzione con molti dischi uguali e storage mission-critical.
+**If you want flexibility:**
+- Mix them. SSD → LVM-Thin;
+- RAID5/RAID10 with mdadm+LVM on the HDDs for bulk;
+- ZFS on a separate pool later (even just for backups and snapshots).
 
 ---
 
-**Se vuoi una guida passo-passo per configurare ZFS e integrarlo in Proxmox, chiedi pure!**
+## ⏺️ Proxmox integration — best practice
+
+- If you go **ZFS**, dedicate it to pools of important VMs/containers; don't mix it with LVM (one
+  disk, one management scheme).
+- Use **ZFS-Thin** if you want zvols (block volumes for VMs) and advanced per-VM snapshots.
+- Enable **compression** and **pool monitoring** (space and resilver).
+- For backups, use separate storage — a Directory, or a secondary ZFS pool.
+- **Don't format or carve up ZFS disks with external tools**: do everything through zpool.
 
 ---
 
-## 3. **Esempi di architettura (“Best practice semplificata”, senza ZFS)**
+## ⏺️ ZFS in short
 
-### **Schema Classico Molto Semplificato**
+- Pros: strongest data safety, powerful snapshots, compression, RAID all in one system.
+- Cons: wants system resources (>8 GB RAM, plenty of CPU under load), reduced usable space on small
+  pools, more complexity.
 
-| Disco | Utilizzo consigliato | Tipo Storage Proxmox |
-|-------|----------------------|----------------------|
-| SSD | Sistema Proxmox + VM “importanti”/veloci | LVM-Thin o LVM |
-| HDD1+HDD2+HDD3+HDD4 | Storage bulk, file ISO, backup, VM “statiche” | LVM, directory o RAID software (mdadm) |
-
----
-
-### **Cosa posso fare con i 4 dischi?**
-
-#### **A. Separati, nessuna ridondanza**
-
-- Ogni disco è aggiunto come storage a sé (Directory o LVM)
-- Pro: Semplice, nessuna perdita di spazio.
-- Contro: Ogni disco è a sé, rischio perdita dati su failure.
-
-#### **B. RAID Software (mdadm) – Solo se vuoi ridondanza**
-
-- Esempio: RAID 10 (mirroring + striping) → 2 dischi di capacità, alta velocità, tolleranza guasti.
-- RAID 5 (striping + parity) → 3 di capacità, tolleranza ad 1 disco rotto (ma performance scrittura peggiore).
-- Quindi:
-  1. Assembli array RAID (mdadm)
-  2. Sopra ci crei LVM o Directory da dare a Proxmox.
-- Pro: Protezione guasti.
-- Contro: Più complicato, perdita della singola capienza di ognuno.
-
-#### **C. LVM “singolo” sopra ciascun disco**
-
-- Più flessibilità nella gestione dei volumi, ma niente ridondanza nativa.
+**To try it later:** add at least 2 dedicated disks and manage everything with ZFS (avoiding a mix
+with LVM on the same disk). Recommended on production servers with many identical disks and
+mission-critical storage.
 
 ---
 
-### **Scenario consigliato e pragmatico**
+## 3. Example layouts (simplified best practice, without ZFS)
 
-**SSD**:
+### A very simplified classic scheme
 
-- Storage primario di VM “veloci” e/o sistema
-- Configura con LVM-Thin (così hai snapshot e thin provisioning per le VM più importanti)
-
-**Dischi aggiuntivi (HDD):**
-
-- Se non ti interessa ridondanza → ogni disco come storage dedicato (es. `bulk1`, `bulk2`...)
-  - storage di backup, ISO, immagini VM non critiche.
-  - Directory (se vuoi accedervi facilmente), oppure LVM classico.
-
-- Se vuoi ridondanza, valuta RAID software (mdadm) poi LVM sopra l’array raid.
+| Disk | Suggested use | Proxmox storage type |
+|------|---------------|----------------------|
+| SSD | Proxmox system + "important"/fast VMs | LVM-Thin or LVM |
+| HDD1+HDD2+HDD3+HDD4 | Bulk storage, ISO files, backups, "static" VMs | LVM, directory or software RAID (mdadm) |
 
 ---
 
-## ⚠️ Disco condiviso via Samba sullo stesso host: mai CIFS verso se stesso
+### What can you do with the 4 disks?
 
-Se un disco è già condiviso via Samba su **questo stesso** Proxmox (vedi
-[`samba-share`](../../samba-share/README.md)) e vuoi anche aggiungerlo come storage
-Proxmox, usa **sempre `Directory` sul mountpoint locale**, mai `CIFS`
-puntando all'IP di questo host — altrimenti Proxmox monta via rete un disco
-già locale, con conseguenze reali (backup falliti, traffico di rete inutile,
-su certe NIC anche instabilità hardware). Caso reale documentato in
-[`samba-share`](../../samba-share/README.md) (vedi sezione "Se il disco
-condiviso è anche uno storage di questo stesso Proxmox") e in
+#### A. Separate, no redundancy
+
+- Each disk added as its own storage (Directory or LVM)
+- Pros: simple, no capacity lost.
+- Cons: each disk stands alone, so a failure means data loss.
+
+#### B. Software RAID (mdadm) — only if you want redundancy
+
+- Example: RAID 10 (mirroring + striping) → 2 disks' worth of capacity, high speed, fault tolerance.
+- RAID 5 (striping + parity) → 3 disks' worth of capacity, tolerates one failed disk (but worse
+  write performance).
+- So:
+  1. Assemble the RAID array (mdadm)
+  2. Build LVM or a Directory on top of it and hand that to Proxmox.
+- Pros: protection against failure.
+- Cons: more complex, and you lose capacity.
+
+#### C. A separate LVM on each disk
+
+- More flexibility in volume management, but no native redundancy.
+
+---
+
+### Recommended pragmatic setup
+
+**SSD:**
+
+- Primary storage for "fast" VMs and/or the system
+- Configure it with LVM-Thin (snapshots and thin provisioning for the VMs that matter most)
+
+**Extra disks (HDD):**
+
+- If you don't need redundancy → each disk as its own storage (`bulk1`, `bulk2`, …)
+  - backup storage, ISOs, non-critical VM images.
+  - Directory (if you want easy access), or classic LVM.
+
+- If you do want redundancy, consider software RAID (mdadm) with LVM on top of the array.
+
+---
+
+## ⚠️ A disk shared over Samba on the same host: never CIFS to yourself
+
+If a disk is already shared over Samba on **this same** Proxmox host (see
+[`samba-share`](../../samba-share/README.md)) and you also want it as Proxmox storage, always use
+**`Directory` on the local mountpoint**, never `CIFS` pointing at this host's IP — otherwise
+Proxmox mounts over the network a disk that is already local, with real consequences (failed
+backups, pointless network traffic, and on some NICs hardware instability too). A real case is
+documented in [`samba-share`](../../samba-share/README.md) (see "If the shared disk is ALSO a
+storage on this same Proxmox host") and in
 [`e1000e-nic-hang-fix`](../e1000e-nic-hang-fix/README.md).
 
-## 4. **Come aggiungere i dischi a Proxmox VE (suggerimenti pratici)**
+## 4. Adding the disks to Proxmox VE (practical notes)
 
-**1. Prepara ciascun disco:**
+**1. Prepare each disk:**
 ```bash
 wipefs -a /dev/sdx
 parted /dev/sdx mklabel gpt
 ```
 
-**2. Da GUI di Proxmox → Datacenter → Storage → Add**
+**2. In the Proxmox GUI → Datacenter → Storage → Add**
 
-- **Directory**: seleziona mountpoint del disco
-- **LVM/LVM-Thin**: Proxmox ti permette di inizializzare il disco con LVM/LVM-Thin
+- **Directory**: pick the disk's mountpoint
+- **LVM/LVM-Thin**: Proxmox can initialise the disk with LVM/LVM-Thin for you
 
-**3. (Facoltativo) Prepara RAID software**
+**3. (Optional) Prepare software RAID**
 
-- Crea RAID (mdadm), poi inizializza sopra storage come su un disco unico.
-
----
-
-## 5. **Best Practice**
-
-- **Se scegli LVM-Thin**: Attiva la notifica se il thin pool raggiunge alte percentuali!
-- **Backup**: Prevedi uno storage separato per i backup PBS (Proxmox Backup Server) o almeno Snapshot + download periodici.
-- **Nomenclatura**: Usa nomi chiari nei tuoi storage (ad es. `ssd-fast`, `bulk1`, `bulk-raid`, ecc.).
-- **Distribuisci in base all’uso**: VM database/veloci su SSD, archivi/lenti su HDD.
+- Create the RAID (mdadm), then initialise storage on top as if it were a single disk.
 
 ---
 
-## **In sintesi – Scelta consigliata per il tuo caso**
+## 5. Best practice
 
-### - **SSD**:
-> LVM-Thin, da usare per VM/container importanti, magari sistema Proxmox.
+- **With LVM-Thin**: turn on notifications for when the thin pool reaches high utilisation.
+- **Backups**: plan separate storage for PBS (Proxmox Backup Server) backups, or at least snapshots
+  plus periodic downloads.
+- **Naming**: use clear storage names (`ssd-fast`, `bulk1`, `bulk-raid`, …).
+- **Place by workload**: database and fast VMs on the SSD, archives and slow data on HDDs.
 
-### - **4x Dischi**:
-> Se vuoi semplicità, impostali come Directory singole o LVM (uno per disco).
-> Se vuoi ridondanza, valuta RAID software (mdadm RAID5 o RAID10), poi LVM o Directory sopra.
+---
+
+## In short — recommended layout for this case
+
+### SSD
+> LVM-Thin, for important VMs and containers, and possibly the Proxmox system itself.
+
+### 4x disks
+> For simplicity, set them up as individual Directories or LVMs (one per disk).
+> For redundancy, consider software RAID (mdadm RAID5 or RAID10) with LVM or a Directory on top.
 >
-> **Evita ZFS solo se sei stretto con lo spazio o vuoi l’installazione più semplice possibile.**
-
----
-
-### **Se vuoi la guida step-by-step per settare RAID, LVM o aggiungere come Directory, chiedi pure!**
-Se specifichi il tipo di disco (SSD vs HDD), posso darti anche la configurazione ottimale e automatizzata più dettagliata.
+> **Skip ZFS only if space is tight or you want the simplest possible installation.**

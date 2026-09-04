@@ -1,47 +1,48 @@
-# Analisi spazio disco con ncdu – Linux
+# Disk usage analysis with ncdu – Linux
 
-## Scopo
-Guida rapida all'uso di `ncdu` per analizzare e liberare spazio disco in modo interattivo su Linux.
+## Purpose
+Quick guide to using `ncdu` to inspect and reclaim disk space interactively on Linux.
 
-## Prerequisiti
+## Prerequisites
 
-- Sistema Linux con accesso `sudo`
-- `ncdu` installato sul sistema
+- A Linux system with `sudo` access
+- `ncdu` installed
 
-## Installazione
+## Installation
 
 ```bash
 sudo apt update
 sudo apt install ncdu
 ```
 
-## Uso base
+## Basic usage
 
 ```bash
 sudo ncdu /
 ```
 
-Questo avvia un'interfaccia ncurses che esplora `/` e mostra le directory più pesanti.
+This starts an ncurses interface that walks `/` and shows the heaviest directories.
 
-## Best practice: limita ncdu al filesystem root
+## Best practice: keep ncdu on the root filesystem
 
 ```bash
 sudo ncdu -x /
 ```
 
-- `-x` (--one-file-system): limita all’attuale filesystem, esclude altri mountpoint.
-- Rapidissimo e non rischi di includere dati di dischi esterni/smb/backup.
+- `-x` (--one-file-system): stays on the current filesystem and skips other mountpoints.
+- Very fast, and there's no risk of pulling in external disks, SMB shares or backups.
 
-## Cosa significa l'output
+## Reading the output
 
-Vedrai solo le directory/file del disco dove è montata `/`, ignorando tutto ciò che è montato sotto (`/mnt`, `/DATA`, `/media`, ecc).
+You only see directories and files on the disk where `/` is mounted, ignoring everything mounted
+underneath it (`/mnt`, `/DATA`, `/media`, and so on).
 
-## Consigli
+## Tips
 
-- Esamina prima le directory grandi, quindi rimuovi con cautela.
-- Non cancellare file di sistema se non sai esattamente cosa fanno.
-- Se trovi file temporanei o cache inutili, valuta la cancellazione selettiva.
+- Look at the large directories first, then delete carefully.
+- Don't remove system files unless you know exactly what they do.
+- If you find temporary files or stale caches, consider deleting them selectively.
 
 ---
 
-**Ultimo aggiornamento:** Aprile 2026
+**Last updated:** April 2026

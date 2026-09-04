@@ -1,65 +1,69 @@
-# GPU VRAM per container Docker – Linux
+# GPU VRAM per Docker container – Linux
 
-## Scopo
-Guida per installare e usare uno script che mappa l'utilizzo GPU (VRAM) di `nvidia-smi` ai container Docker, ordinando i risultati per VRAM utilizzata.
+## Purpose
+How to install and use a script that maps GPU (VRAM) usage from `nvidia-smi` back to Docker
+containers, sorted by VRAM in use.
 
-## Prerequisiti
+## Prerequisites
 
-- Host Linux con driver NVIDIA installati
-- `nvidia-smi` disponibile
-- Docker installato se vuoi mappare il PID al container
+- A Linux host with the NVIDIA drivers installed
+- `nvidia-smi` available
+- Docker installed, if you want the PID mapped to a container
 
-## Script
+## The script
 
-Salva lo script in `/usr/local/bin/gpu-vram-by-container.sh` e rendilo eseguibile.
+Save the script as `/usr/local/bin/gpu-vram-by-container.sh` and make it executable.
 
-Lo script raccoglie informazioni direttamente da `nvidia-smi` e mostra:
+It pulls its information straight from `nvidia-smi` and shows:
 
-- riepilogo GPU per ogni scheda
-- nome GPU, versione driver, temperatura, utilizzo GPU%, utilizzo memoria%
-- memoria utilizzata e memoria totale
-- processi con VRAM allocata
-- mapping PID → container Docker se disponibile
+- a per-card GPU summary
+- GPU name, driver version, temperature, GPU utilisation %, memory utilisation %
+- memory in use and total memory
+- processes holding VRAM
+- PID → Docker container mapping where available
 
-## Installazione e utilizzo
+## Installation and usage
 
-### Opzione A: esegui dalla cartella corrente
+### Option A: run it from the current directory
 
 ```bash
 chmod +x ./gpu-vram-by-container.sh
 ./gpu-vram-by-container.sh
 ```
 
-Usa la modalità live interna del comando:
+Use the command's own live mode:
 
 ```bash
 ./gpu-vram-by-container.sh --live 2
 ```
 
-La modalità `--live` aggiorna solo i valori che cambiano realmente e mantiene le intestazioni/statiche sulla stessa posizione dello schermo.
+`--live` refreshes only the values that actually change and keeps the headers and static parts in
+the same place on screen.
 
-### Opzione B: installa in PATH (consigliata)
+### Option B: install it on PATH (recommended)
 
 ```bash
 sudo install -m 0755 ./gpu-vram-by-container.sh /usr/local/bin/gpu-vram-by-container.sh
 gpu-vram-by-container.sh
 ```
 
-Dopo l'installazione in PATH, puoi eseguire la versione live anche così (il modo più affidabile per eseguire il monitor live è usare la modalità interna:):
+Once it's on PATH, the live version runs the same way (the internal live mode is the most reliable
+way to run the monitor):
 
 ```bash
 gpu-vram-by-container.sh --live 2
 ```
 
-> Nota:
+> Note:
 >
-> Se hai installato lo script in `PATH` e i colori non appaiono, prima controlla quale copia viene eseguita:
+> If you installed the script on `PATH` and the colours don't show up, first check which copy is
+> actually running:
 >
 > ```bash
 > which gpu-vram-by-container.sh
 > ```
 >
-> Poi reinstalla la copia aggiornata con:
+> Then reinstall the updated copy with:
 >
 > ```bash
 > sudo install -m 0755 ./gpu-vram-by-container.sh /usr/local/bin/gpu-vram-by-container.sh
@@ -68,12 +72,12 @@ gpu-vram-by-container.sh --live 2
 >
 ---
 
-## Note
+## Notes
 
-- Lo script richiede `nvidia-smi`; se non è presente, esce con errore.
-- Con Docker installato, prova a mappare il PID al container corrispondente.
-- Funziona sia su host che su VM con GPU passthrough.
+- The script needs `nvidia-smi`; without it, it exits with an error.
+- With Docker installed, it tries to map each PID to the matching container.
+- Works both on bare metal and in a VM with GPU passthrough.
 
 ---
 
-**Ultimo aggiornamento:** Aprile 2026
+**Last updated:** April 2026

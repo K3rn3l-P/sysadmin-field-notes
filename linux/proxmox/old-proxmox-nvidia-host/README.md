@@ -1,35 +1,36 @@
-# Correzione NVIDIA host Proxmox – Linux
+# NVIDIA fix on the Proxmox host – Linux
 
-## Scopo
-Guida per blacklistare i driver NVIDIA/Nouveau sull'host Proxmox quando la GPU deve essere passata a una VM o a un container.
+## Purpose
+How to blacklist the NVIDIA/Nouveau drivers on a Proxmox host when the GPU has to be passed
+through to a VM or a container.
 
-## Prerequisiti
+## Prerequisites
 
-- Host Proxmox VE
-- Accesso root via shell
-- GPU dedicata a passthrough verso VM/LXC
+- A Proxmox VE host
+- Root shell access
+- A GPU dedicated to passthrough towards a VM or LXC
 
-## Verifica GPU
+## Check the GPU
 
 ```bash
 lspci | grep -i nvidia
 ```
 
-Oppure:
+Or:
 
 ```bash
 lspci | grep -i vga
 lspci -nnk | grep -A 10 '05:00'
 ```
 
-## Controlla i file di blacklist
+## Check the blacklist files
 
 ```bash
 cat /etc/modprobe.d/vfio.conf
 cat /etc/modprobe.d/blacklist-nvidia2070.conf
 ```
 
-Esempio di file per passthrough:
+Example files for passthrough:
 
 `/etc/modprobe.d/vfio.conf`
 
@@ -47,13 +48,13 @@ blacklist nvidia_uvm
 blacklist nvidia_modeset
 ```
 
-## Aggiorna initramfs e GRUB
+## Update initramfs and GRUB
 
 ```bash
 update-initramfs -u && update-grub && reboot
 ```
 
-## Verifica dopo reboot
+## Verify after reboot
 
 ```bash
 lspci -nnk | grep -A 10 '05:00'
@@ -61,11 +62,12 @@ lspci -nnk | grep -A 10 '05:00'
 
 ---
 
-## Note
+## Notes
 
-- Assicurati che la GPU sia destinata a una VM o a un container prima di blacklistare i driver sull'host.
-- Dopo il reboot, controlla che l'host non carichi più i driver NVIDIA/Nouveau per quel device.
+- Make sure the GPU really is destined for a VM or container before blacklisting the drivers on
+  the host.
+- After the reboot, check that the host no longer loads the NVIDIA/Nouveau drivers for that device.
 
 ---
 
-**Ultimo aggiornamento:** Aprile 2026
+**Last updated:** April 2026

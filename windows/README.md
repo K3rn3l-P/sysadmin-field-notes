@@ -1,3 +1,3 @@
-# Windows utility script (placeholder)
+# Windows utility scripts (placeholder)
 
-Qui verranno inseriti script/utility per Windows.
+Scripts and utilities for Windows will go here.

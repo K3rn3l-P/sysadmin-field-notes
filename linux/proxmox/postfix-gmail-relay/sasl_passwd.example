@@ -1,7 +1,7 @@
-# Template per /etc/postfix/sasl_passwd — NON è il file reale.
-# Copia questa riga (o generala con lo script), sostituisci con le tue
-# credenziali vere, e salva come /etc/postfix/sasl_passwd (mai in questa
-# cartella del repo — vedi .gitignore, i file .env/sasl_passwd reali non
-# vanno mai committati).
+# Template for /etc/postfix/sasl_passwd — this is NOT the real file.
+# Copy this line (or generate it with the script), replace it with your own
+# real credentials, and save it as /etc/postfix/sasl_passwd (never inside this
+# repo folder — see .gitignore: real .env/sasl_passwd files must never be
+# committed).
 
 [smtp.gmail.com]:587    your-email@gmail.com:your-app-password

@@ -1,181 +1,174 @@
-# Notifiche Proxmox che non arrivano mai — relay Postfix via Gmail
+# Proxmox notifications that never arrive — Postfix relay via Gmail
 
-> **Sintomo:** l'email di `root@pam` è configurata (Datacenter → o
-> `/etc/pve/user.cfg`), ma non arriva mai nulla — né alert SMART, né backup
-> falliti, né test manuali. Risolto e testato su due host Proxmox VE
-> (8.4.18 e 8.4.12), agosto 2026.
+> **Symptom:** `root@pam` has an email address configured (Datacenter → or
+> `/etc/pve/user.cfg`), but nothing ever arrives — no SMART alerts, no failed-backup
+> notices, not even manual tests. Diagnosed and fixed on two Proxmox VE hosts
+> (8.4.18 and 8.4.12), August 2026.
 
 ---
 
-## Causa reale
+## The actual cause
 
-Il meccanismo di default di Proxmox per le notifiche (target `sendmail` nel
-nuovo sistema di notifiche, o le chiamate dirette di `smartd`/`vzdump`
-legacy) passa tutto al binario `sendmail`, fornito da **Postfix**. Su
-un'installazione Proxmox pulita, **Postfix non ha nessun `relayhost`
-configurato**: prova a consegnare direttamente ai server MX di destinazione
-(Gmail, Outlook, ecc.), e su una rete residenziale questo fallisce quasi
-sempre — porta 25 in uscita bloccata dall'ISP, o il provider di destinazione
-rifiuta connessioni da IP residenziali. Il risultato: le email restano
-bloccate in coda (`mailq`) per sempre, silenziosamente, e nessuno se ne
-accorge finché non serve davvero una notifica.
+Proxmox's default notification path (the `sendmail` target in the new notification
+system, or the legacy direct calls from `smartd`/`vzdump`) hands everything to the
+`sendmail` binary, which is provided by **Postfix**. On a clean Proxmox install,
+**Postfix has no `relayhost` configured**: it tries to deliver straight to the
+destination MX servers (Gmail, Outlook, and so on), and on a residential network that
+almost always fails — outbound port 25 blocked by the ISP, or the destination provider
+refusing connections from residential IPs. The result: the mail sits in the queue
+(`mailq`) forever, silently, and nobody notices until a notification actually matters.
 
-Conferma dalla documentazione ufficiale Proxmox (capitolo Notifications):
+Confirmed by the official Proxmox documentation (Notifications chapter):
 > *"It may be necessary to configure Postfix so that it can deliver mails
 > correctly - for example by setting an external mail relay (smart host)"*
 
-## Soluzione: dare a Postfix un relay SMTP esterno
+## The fix: give Postfix an external SMTP relay
 
-Non serve inventare un sistema di notifiche parallelo (es. un target `smtp`
-che bypassa Postfix): basta sistemare Postfix stesso, così **tutto** quello
-che già esiste — notifiche Proxmox, `smartd`, backup job legacy — ricomincia
-a funzionare insieme, senza toccare nient'altro.
+There's no need to build a parallel notification system (an `smtp` target that bypasses
+Postfix, say): just fix Postfix itself, and **everything** that already exists — Proxmox
+notifications, `smartd`, legacy backup jobs — starts working again together, without
+touching anything else.
 
-### 1. Prerequisito: App Password (se usi Gmail come relay)
+### 1. Prerequisite: an App Password (if you relay through Gmail)
 
-Account Google → Sicurezza → Verifica in due passaggi (deve essere attiva)
-→ Password per le app → generane una nuova. **La password normale
-dell'account non funziona** per SMTP da programmi terzi.
+Google account → Security → 2-Step Verification (must be on) → App passwords →
+generate a new one. **The normal account password does not work** for SMTP from
+third-party programs.
 
-### 2. Prepara le credenziali
+### 2. Prepare the credentials
 
 ```bash
 cd linux/proxmox/postfix-gmail-relay
 cp sasl_passwd.example /etc/postfix/sasl_passwd
-nano /etc/postfix/sasl_passwd   # sostituisci con le tue credenziali vere
+nano /etc/postfix/sasl_passwd   # replace with your real credentials
 ```
 
-Formato del file (una riga per relay):
+File format (one line per relay):
 ```
-[smtp.gmail.com]:587    tuo-indirizzo@gmail.com:la-tua-app-password
+[smtp.gmail.com]:587    your-address@gmail.com:your-app-password
 ```
 
-### 3. Esegui lo script
+### 3. Run the script
 
 ```bash
 chmod +x configure-postfix-relay.sh
 ./configure-postfix-relay.sh
 ```
 
-Lo script (vedi [`configure-postfix-relay.sh`](./configure-postfix-relay.sh)):
-- installa `libsasl2-modules` se manca — **gotcha reale riscontrato**: senza
-  questo pacchetto Postfix fallisce con `SASL authentication failed... no
-  mechanism available`, anche con `sasl_passwd` configurato correttamente.
-  Il messaggio d'errore non lo rende ovvio, facile perderci tempo.
-- genera l'hash map (`postmap`) e imposta i permessi (`600`, `root:root` —
-  il file contiene una password in chiaro)
-- configura `relayhost` e i parametri SASL/TLS in `main.cf`
-- ricarica Postfix
+The script (see [`configure-postfix-relay.sh`](./configure-postfix-relay.sh)):
+- installs `libsasl2-modules` if it's missing — **a real gotcha**: without that package
+  Postfix fails with `SASL authentication failed... no mechanism available`, even when
+  `sasl_passwd` is set up correctly. The error message doesn't make that obvious, and
+  it's easy to lose time on it.
+- builds the hash map (`postmap`) and sets permissions (`600`, `root:root` — the file
+  holds a cleartext password)
+- configures `relayhost` and the SASL/TLS parameters in `main.cf`
+- reloads Postfix
 
-È idempotente: si può rilanciare senza duplicare righe in `main.cf`.
+It's idempotent: re-running it won't duplicate lines in `main.cf`.
 
-### 4. Sincronizza il destinatario e testa
+### 4. Line up the recipient and test
 
-Se il server è Proxmox, verifica che `root@pam` abbia un'email valida
-(`/etc/pve/user.cfg`, o Datacenter → Permissions → Users), poi testa:
+On a Proxmox server, check that `root@pam` has a valid email address
+(`/etc/pve/user.cfg`, or Datacenter → Permissions → Users), then test:
 
 ```bash
 pvesh create /cluster/notifications/targets/mail-to-root/test
-mailq   # deve restare vuota
-journalctl -S "-2 min" | grep "postfix/smtp"   # cerca "status=sent"
+mailq   # should stay empty
+journalctl -S "-2 min" | grep "postfix/smtp"   # look for "status=sent"
 ```
 
-Se non hai Proxmox (solo Postfix su Debian generico):
+Without Proxmox (plain Postfix on Debian):
 ```bash
-echo "test" | mail -s "Test relay" destinatario@esempio.com
+echo "test" | mail -s "Test relay" recipient@example.com
 ```
 
-**Il criterio di successo vero è ricevere l'email**, non solo vedere
-`status=sent` nel log — controlla anche nello spam la prima volta (mittente
-nuovo).
+**The real success criterion is receiving the email**, not just seeing `status=sent` in
+the log — check the spam folder the first time too (the sender is new).
 
-### 5. Ripulisci la coda vecchia (se c'erano email bloccate da prima)
+### 5. Flush the old queue (if mail was stuck from before)
 
 ```bash
-mailq                # guarda cosa c'è
-postsuper -d ALL      # cancella tutto quello che è in coda
+mailq                # see what's in there
+postsuper -d ALL      # delete everything queued
 ```
 
 ---
 
-## Su più host (es. cluster o nodi separati)
+## Across multiple hosts (cluster or separate nodes)
 
-Il file `sasl_passwd` (con lo stesso account relay) va replicato su ogni
-host che deve mandare notifiche — non è un file condiviso via `/etc/pve/`.
-Se usi Proxmox con più nodi indipendenti (non in cluster), verifica anche
-che `/etc/pve/notifications.cfg` abbia lo stesso target/matcher `sendmail`
-su ciascuno (di solito è già il default builtin — controllalo con
+The `sasl_passwd` file (with the same relay account) has to be copied to every host that
+should send notifications — it isn't shared through `/etc/pve/`. With several independent
+Proxmox nodes (not clustered), also check that `/etc/pve/notifications.cfg` has the same
+`sendmail` target/matcher on each of them (usually the builtin default — confirm with
 `pvesh get /cluster/notifications/targets`).
 
-Se un host ha già altri target di notifica funzionanti (es. un webhook
-verso un'app di notifiche push) **non serve rimuoverli**: il nuovo relay
-Postfix e il target `sendmail` coesistono tranquillamente in parallelo con
-qualunque altro target/matcher configurato.
+If a host already has other working notification targets (a webhook to a push-notification
+app, for instance), **there's no need to remove them**: the new Postfix relay and the
+`sendmail` target coexist quite happily alongside any other target or matcher.
 
 ---
 
-## Rendere le notifiche riconoscibili (nome server in chiaro)
+## Making notifications recognisable (server name in plain text)
 
-Con Postfix che funziona, il problema successivo è capire **da quale host**
-arriva una notifica — di default il messaggio di test è generico
-("Test notification", uguale ovunque) e anche i messaggi reali mostrano solo
-l'FQDN tecnico, non sempre facile da riconoscere al volo.
+With Postfix working, the next problem is telling **which host** a notification came from
+— by default the test message is generic ("Test notification", identical everywhere) and
+even real messages show only the technical FQDN, which isn't always easy to place at a
+glance.
 
-Proxmox permette di sovrascrivere i template email in
-`/etc/pve/notification-templates/default/<tipo>-<subject|body>.<txt|html>.hbs`.
-Sono per-host (non sincronizzati tra nodi indipendenti), quindi puoi
-scriverci direttamente un nome mnemonico (es. `hp-server`, `mini-server`,
-qualunque cosa ti aiuti a riconoscerlo subito).
+Proxmox lets you override the email templates in
+`/etc/pve/notification-templates/default/<type>-<subject|body>.<txt|html>.hbs`.
+They're per-host (not synced between independent nodes), so you can write a memorable
+name straight into them (`hp-server`, `mini-server`, whatever you'll recognise instantly).
 
-Template pronti in [`templates/`](./templates) — copia, sostituisci
-`NOME-SERVER` col nome che vuoi per quell'host specifico, incolla in
+Ready-made templates are in [`templates/`](./templates) — copy them, replace
+`SERVER-NAME` with the name you want for that specific host, and drop them into
 `/etc/pve/notification-templates/default/`:
 
 ```bash
 mkdir -p /etc/pve/notification-templates/default
 for f in templates/*.hbs; do
-  sed "s/NOME-SERVER/hp-server/g" "$f" > "/etc/pve/notification-templates/default/$(basename "$f")"
+  sed "s/SERVER-NAME/hp-server/g" "$f" > "/etc/pve/notification-templates/default/$(basename "$f")"
 done
 ```
-(cambia `hp-server` col nome che vuoi per quell'host)
+(change `hp-server` to whatever you want for that host)
 
-**Variabili disponibili — gotcha reali riscontrati testando:**
-- `{{ fields.hostname }}` e `{{ target }}` sono **generici**, disponibili in
-  *qualunque* tipo di notifica, incluso `test`.
-- `{{ fqdn }}` **non** è generico: esiste solo per i tipi che lo passano
-  esplicitamente (`vzdump`, `package-updates`). Usato dentro il template
-  `test-body.txt.hbs` risulta **vuoto**, senza errore — email inviata ma col
-  campo bianco. Il tipo `test` ha un contesto molto più limitato degli altri.
-- `{{ timestamp }}` da solo **dà errore** (`parameter not found`): è un
-  helper che richiede un argomento, es. `{{timestamp fence-timestamp}}` (solo
-  nei tipi che passano quel campo specifico, es. `fencing`/`replication`).
-  Non serve comunque: ogni email ha già l'header `Date` nativo con
-  data/ora, visibile in qualunque client di posta senza doverlo ripetere nel
-  corpo.
+**Available variables — real gotchas found while testing:**
+- `{{ fields.hostname }}` and `{{ target }}` are **generic**, available in *any*
+  notification type, `test` included.
+- `{{ fqdn }}` is **not** generic: it only exists for the types that pass it explicitly
+  (`vzdump`, `package-updates`). Used inside `test-body.txt.hbs` it comes out **empty**,
+  with no error — the email is sent with a blank field. The `test` type has a much more
+  limited context than the others.
+- `{{ timestamp }}` on its own **throws an error** (`parameter not found`): it's a helper
+  that needs an argument, e.g. `{{timestamp fence-timestamp}}` (and only in the types that
+  pass that particular field, such as `fencing`/`replication`). You don't need it anyway:
+  every email already carries a native `Date` header, visible in any mail client without
+  repeating it in the body.
 
-Testa con lo stesso comando di prima (`pvesh create
-/cluster/notifications/targets/mail-to-root/test`) — se un template ha un
-errore di sintassi, `pvesh` lo segnala subito in output.
+Test with the same command as before (`pvesh create
+/cluster/notifications/targets/mail-to-root/test`) — if a template has a syntax error,
+`pvesh` reports it immediately in its output.
 
 ---
 
 ## Troubleshooting
 
-| Problema | Causa probabile | Fix |
+| Problem | Likely cause | Fix |
 |---|---|---|
-| `SASL authentication failed... no mechanism available` | Manca `libsasl2-modules` | `apt install libsasl2-modules` + `systemctl reload postfix` |
-| `Connection refused` / `Network is unreachable` sulla porta 25 | Relay non configurato, Postfix prova la consegna diretta | Esegui questo script |
-| `535 5.7.8 Username and Password not accepted` (Gmail) | Password normale invece di App Password, o 2FA non attiva | Genera una App Password |
-| Email inviata (`status=sent`) ma non arriva | Finita nello spam, o `mailto`/destinatario sbagliato | Controlla spam; verifica `mailto-user` in `notifications.cfg` |
-| Coda piena di vecchi messaggi bloccati | Erano lì da prima del fix, useranno comunque l'indirizzo vecchio | `postsuper -d ALL` dopo aver verificato che il nuovo relay funziona |
+| `SASL authentication failed... no mechanism available` | `libsasl2-modules` missing | `apt install libsasl2-modules` + `systemctl reload postfix` |
+| `Connection refused` / `Network is unreachable` on port 25 | No relay configured, Postfix attempts direct delivery | Run this script |
+| `535 5.7.8 Username and Password not accepted` (Gmail) | Normal password instead of an App Password, or 2FA not enabled | Generate an App Password |
+| Mail sent (`status=sent`) but never arrives | Landed in spam, or wrong `mailto`/recipient | Check spam; verify `mailto-user` in `notifications.cfg` |
+| Queue full of old stuck messages | They predate the fix and will still use the old address | `postsuper -d ALL` once the new relay is confirmed working |
 
 ---
 
-## Fonti
+## Sources
 
-- [Proxmox VE Notifications — documentazione ufficiale](https://pve.proxmox.com/pve-docs/chapter-notifications.html)
-- [K3rn3l-P/utility-scripts](https://github.com/K3rn3l-P/utility-scripts)
+- [Proxmox VE Notifications — official documentation](https://pve.proxmox.com/pve-docs/chapter-notifications.html)
+- [K3rn3l-P/sysadmin-field-notes](https://github.com/K3rn3l-P/sysadmin-field-notes)
 
 ---
 
-> Guida curata da [K3rn3l-P](https://github.com/K3rn3l-P)
+> Guide by [K3rn3l-P](https://github.com/K3rn3l-P)

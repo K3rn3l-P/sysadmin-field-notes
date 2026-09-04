@@ -1,7 +1,7 @@
-# Snippet da /etc/pve/storage.cfg — sostituisce la voce cifs:TB4 originale
-# (che puntava a se stesso via //10.0.0.10/4TB) con uno storage locale.
+# Snippet from /etc/pve/storage.cfg — replaces the original cifs:TB4 entry
+# (which pointed at itself via //10.0.0.10/4TB) with local storage.
 #
-# PRIMA (sbagliato — CIFS verso l'IP di questo stesso host):
+# BEFORE (wrong — CIFS towards this very host's IP):
 #
 #   cifs: TB4
 #   	path /mnt/pve/TB4
@@ -11,19 +11,19 @@
 #   	prune-backups keep-all=1
 #   	username Condiviso
 #
-# DOPO (corretto — storage dir sul disco già montato localmente):
+# AFTER (right — a dir storage on the disk already mounted locally):
 #
 dir: TB4
 	path /mnt/4TB
 	content snippets,import,backup,iso,vztmpl
 	prune-backups keep-all=1
 
-# NOTE:
-# - "images"/"rootdir" rimossi dal content: il disco è NTFS (via ntfs-3g), non
-#   gestisce permessi Unix/symlink, e su questo host quelle directory erano
-#   comunque vuote (nessun disco VM ci girava sopra).
-# - Dopo aver applicato, ricordati di:
-#     systemctl stop mnt-pve-TB4.mount   # se il vecchio mount CIFS è ancora attivo
-#     rm -f /etc/pve/priv/storage/TB4.pw # credenziale CIFS non più usata
+# NOTES:
+# - "images"/"rootdir" dropped from content: the disk is NTFS (via ntfs-3g), it
+#   doesn't handle Unix permissions or symlinks, and on this host those
+#   directories were empty anyway (no VM disks lived there).
+# - After applying, remember to:
+#     systemctl stop mnt-pve-TB4.mount   # if the old CIFS mount is still active
+#     rm -f /etc/pve/priv/storage/TB4.pw # CIFS credential no longer used
 #     systemctl restart pvestatd
-#     pvesm status                       # verifica che TB4 risulti "dir" e "active"
+#     pvesm status                       # check TB4 now shows as "dir" and "active"

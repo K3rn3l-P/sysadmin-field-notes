@@ -1,25 +1,26 @@
-# Comandi hardware e disco – Linux
+# Hardware and disk commands – Linux
 
-## Scopo
-Raccoglie comandi utili per ottenere informazioni su CPU, RAM, dischi, partizioni e bus hardware su Linux.
+## Purpose
+A collection of useful commands for pulling information about CPU, RAM, disks, partitions and
+hardware buses on Linux.
 
-## Prerequisiti
+## Prerequisites
 
-- Sistema Linux con accesso `sudo`
+- A Linux system with `sudo` access
 
-## Info CPU
+## CPU info
 
 ```bash
 lscpu
 ```
 
-## Info RAM
+## RAM info
 
 ```bash
 free -h
 ```
 
-## Info dischi e partizioni
+## Disks and partitions
 
 ```bash
 lsblk
@@ -28,61 +29,59 @@ df -h
 cat /proc/partitions
 ```
 
-## Info bus/dispositivi PCI o USB
+## PCI and USB buses and devices
 
 ```bash
 lspci
 lsusb
 ```
 
-## Montaggi filesystem
+## Filesystem mounts
 
 ```bash
 mount
 cat /proc/mounts
 ```
 
-## Identifica modelli disco
+## Identify disk models
 
 ```bash
 cat /sys/block/sd*/device/model
 cat /sys/block/sd*/device/vendor
 ```
 
-## Inventario esteso (dmidecode)
+## Extended inventory (dmidecode)
 
 ```bash
-dmidecode -t system -t baseboard   # produttore/modello scheda madre
-dmidecode -t bios                  # versione BIOS
-dmidecode -t slot                  # slot PCIe liberi/occupati
+dmidecode -t system -t baseboard   # motherboard vendor/model
+dmidecode -t bios                  # BIOS version
+dmidecode -t slot                  # free/occupied PCIe slots
 ```
 
-## SMART (salute dischi)
+## SMART (disk health)
 
 ```bash
-smartctl -i /dev/sdX      # modello — spesso indica se è un disco SMR o CMR
-smartctl -H /dev/sdX      # health overall PASSED/FAILED
-smartctl -A /dev/sdX      # tutti gli attributi
+smartctl -i /dev/sdX      # model — often tells you whether the disk is SMR or CMR
+smartctl -H /dev/sdX      # overall health PASSED/FAILED
+smartctl -A /dev/sdX      # all attributes
 smartctl -l error /dev/sdX     # error log
-smartctl -l selftest /dev/sdX  # storico self-test
-smartctl -t long /dev/sdX      # avvia uno self-test esteso in background (sola lettura, sicuro anche su disco in uso)
+smartctl -l selftest /dev/sdX  # self-test history
+smartctl -t long /dev/sdX      # start an extended self-test in the background (read-only, safe on a disk in use)
 ```
 
-> Attenzione: attributi con lo stesso nome hanno significati leggermente
-> diversi tra vendor — es. `188 Command_Timeout` su un disco Seagate SMR è
-> indicativo di stress; `235 POR_Recovery_Count` (Samsung) e
-> `174 Unexpect_Power_Loss_Ct` (Crucial) contano gli spegnimenti non puliti:
-> se crescono nel tempo, il sistema sta subendo blocchi/riavvii forzati anche
-> se non ci si è accorti di nulla.
+> Careful: attributes with the same name mean slightly different things across vendors — e.g.
+> `188 Command_Timeout` on a Seagate SMR drive indicates stress, while `235 POR_Recovery_Count`
+> (Samsung) and `174 Unexpect_Power_Loss_Ct` (Crucial) count unclean shutdowns: if they climb over
+> time, the system is taking hangs or forced reboots even if you never noticed any.
 
 ---
 
-## Consigli
+## Tips
 
-- Usa `lsblk` per vedere rapidamente dischi, partizioni e punti di mount.
-- Controlla `df -h` per ricevere la capacità usata su filesystem montati.
-- Usa `lspci` e `lsusb` per trovare informazioni su schede grafiche, adattatori e controller.
+- Use `lsblk` for a quick view of disks, partitions and mountpoints.
+- Check `df -h` for used capacity on mounted filesystems.
+- Use `lspci` and `lsusb` to find graphics cards, adapters and controllers.
 
 ---
 
-**Ultimo aggiornamento:** Agosto 2026
+**Last updated:** August 2026

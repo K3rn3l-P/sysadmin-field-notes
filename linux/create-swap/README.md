@@ -1,39 +1,39 @@
-# Utility Swap Proxmox VM – Guida rapida
+# Swap utility for Proxmox VMs – quick guide
 
-Utility e best practice per gestire la RAM e abilitare lo swap **all’interno delle VM Proxmox/linux**
-Valida per Debian/Ubuntu ma facilmente adattabile
-
----
-
-## Perché serve lo swap in una VM?
-
-- Evita crash improvvisi/OOM-killer quando la RAM si satura (es: Docker, LLM, AI, servizi pesanti)
-- Migliora stabilità su VM con workload variabile/dinamico
-- È fondamentale dove la RAM “vista” dalla VM è fisiologicamente meno di quella assegnata in GUI
+Utilities and best practice for managing RAM and enabling swap **inside Proxmox/Linux VMs**.
+Written for Debian/Ubuntu but easy to adapt.
 
 ---
 
-## Best practice RAM & SWAP su Proxmox VM
+## Why does a VM need swap?
 
-- RAM: assegna in Hardware → Memory, GUI Proxmox (es: 8–32 GiB a seconda del carico)
-- **Ballooning:** disabilitato (a meno di esigenze specifiche)
-- **Swap:** sempre attivo, almeno 4–8 GiB (anche su SSD, meglio swap che crash!)
+- Avoids sudden crashes and OOM-killer kicks when RAM fills up (Docker, LLMs, AI, heavy services)
+- Improves stability on VMs with variable or bursty workloads
+- Essential where the RAM the VM actually "sees" is inherently less than what's assigned in the GUI
 
 ---
 
-## Creazione Swap automatica (con script incluso)
+## RAM & swap best practice on Proxmox VMs
 
-### 1. Copia lo script `crea_swap.sh` nella VM  
-### 2. Rendi eseguibile  
+- RAM: assign it under Hardware → Memory in the Proxmox GUI (e.g. 8–32 GiB depending on load)
+- **Ballooning:** off, unless you specifically need it
+- **Swap:** always on, at least 4–8 GiB (even on SSD — better swap than a crash)
+
+---
+
+## Creating swap automatically (script included)
+
+### 1. Copy `crea_swap.sh` into the VM
+### 2. Make it executable
 ```bash
 chmod +x crea_swap.sh
 ```
-### 3. Esegui specificando la dimensione desiderata (in GiB, default 4GB):  
+### 3. Run it with the size you want (in GiB, default 4 GB):
 ```bash
-sudo ./crea_swap.sh 8   # crea swapfile da 8GB
+sudo ./crea_swap.sh 8   # creates an 8 GB swapfile
 ```
 
-### 4. Controlla che swap sia attivo:  
+### 4. Check that swap is active:
 ```bash
 free -h
 swapon --show
@@ -45,23 +45,23 @@ swapon --show
 
 ```bash
 #!/bin/bash
-# crea_swap.sh – crea file swap in automatico in una VM
-# usage: sudo ./crea_swap.sh [GB]   (es: sudo ./crea_swap.sh 8)
-SIZE="${1:-4}" # default a 4GB se non specificato
+# crea_swap.sh – creates a swap file automatically inside a VM
+# usage: sudo ./crea_swap.sh [GB]   (e.g. sudo ./crea_swap.sh 8)
+SIZE="${1:-4}" # defaults to 4GB if not given
 
 set -e
 
 if [[ "$EUID" -ne 0 ]]; then
-  echo "❌ Devi eseguire come root (usa sudo)!"
+  echo "❌ You must run this as root (use sudo)!"
   exit 1
 fi
 
 if swapon --noheadings --show=NAME | grep -q '/swapfile'; then
-  echo "⚠️  Swapfile già presente. Esci senza modificare nulla."
+  echo "⚠️  Swapfile already present. Exiting without changing anything."
   swapon --show; exit 0
 fi
 
-echo "📝 Creo swapfile da ${SIZE} GB in /swapfile ..."
+echo "📝 Creating a ${SIZE} GB swapfile at /swapfile ..."
 fallocate -l "${SIZE}G" /swapfile || dd if=/dev/zero of=/swapfile bs=1M count="$((SIZE*1024))"
 chmod 600 /swapfile
 mkswap /swapfile
@@ -69,28 +69,31 @@ swapon /swapfile
 if ! grep -q '/swapfile' /etc/fstab; then
   echo '/swapfile none swap sw 0 0' >> /etc/fstab
 fi
-echo "✅ Swap di ${SIZE}GB creato e attivo!"
+echo "✅ ${SIZE}GB of swap created and active!"
 swapon --show
 ```
 
 ---
 
-## Domande frequenti
+## FAQ
 
-- **Swap su SSD rovina il disco?**  
-  **No, se non swap usato pesantemente e continuamente. In ambienti normali, la durata è accettabile e swap protegge i dati da crash/OOM.**
+- **Does swap on an SSD wear the disk out?**
+  **No, as long as it isn't swapping heavily and continuously. In normal use the lifespan is fine,
+  and swap protects your data from crashes and OOM kills.**
 
-- **Serve reboot dopo swap?**  
-  **No!** Lo swap è subito attivo. Reboot serve solo se vuoi verificare la persistenza.
+- **Do I need to reboot after adding swap?**
+  **No.** Swap is active immediately. A reboot is only needed if you want to confirm it persists.
 
-- **La VM vede meno RAM di quella assegnata in Proxmox?**  
-  È normale vedere poche centinaia di MB in meno (riservati a firmware/virtualizzatore). Se la differenza è grande, controlla Ballooning e config VM.
+- **The VM sees less RAM than Proxmox assigned it?**
+  A few hundred MB less is normal (reserved for firmware and the hypervisor). If the gap is large,
+  check ballooning and the VM config.
 
 ---
 
 ## Troubleshooting
 
-- **free -h** deve mostrare la riga “Swap” con valore > 0
-- **swapon --show** deve elencare `/swapfile`
-- **Se vedi errori OOM in dmesg** nonostante swap, aumenta RAM/Swap o limita i processi che consumano più memoria (`ps aux --sort=-%mem | head`)
-- **Ballooning ancora attivo?** Disabilitalo dalla GUI Proxmox → Hardware → Memory.
+- **free -h** should show a "Swap" row with a value greater than 0
+- **swapon --show** should list `/swapfile`
+- **If you still see OOM errors in dmesg** despite swap, add RAM/swap or rein in the processes
+  using the most memory (`ps aux --sort=-%mem | head`)
+- **Ballooning still on?** Turn it off in the Proxmox GUI → Hardware → Memory.

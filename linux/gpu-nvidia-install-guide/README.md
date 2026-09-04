@@ -1,25 +1,29 @@
-# Guida Installazione Pulita Driver NVIDIA su Debian 12 VM/Proxmox
+# Clean NVIDIA driver install on Debian 12 VM / Proxmox
 
-Questa guida spiega come installare i driver NVIDIA in modo sicuro su Debian 12 in ambiente virtualizzato (Proxmox VM, PCI passthrough), evitando mismatch e rotture dovute a repository misti o pacchetti incompatibili.
-
----
-
-## Avviso importante
-
-⚠️ NON aggiungere MAI repository extra NVIDIA/CUDA a meno che tu non sappia esattamente cosa fai e tu possa allineare TUTTI i pacchetti!
+This guide covers installing the NVIDIA drivers safely on Debian 12 in a virtualised environment
+(Proxmox VM, PCI passthrough), avoiding the version mismatches and breakage that come from mixed
+repositories or incompatible packages.
 
 ---
 
-## Prerequisiti & Avvertenze
+## Important warning
 
-- ☑️ Usa **SOLO repository ufficiali Debian** (`deb.debian.org`), NESSUNA repo CUDA o pacchetti .run NVIDIA
-- ☑️ NO repository sperimentali o terze parti (tutto deve venire da Debian)
-- ☑️ Main contrib, non-free e non-free-firmware ABILITATI su `/etc/apt/sources.list`
-- ☑️ Sistema aggiornato
+⚠️ NEVER add extra NVIDIA/CUDA repositories unless you know exactly what you're doing and can keep
+ALL the packages aligned!
 
 ---
 
-## Step 1 – Aggiorna il sistema
+## Prerequisites and caveats
+
+- ☑️ Use **only the official Debian repositories** (`deb.debian.org`) — no CUDA repos, no NVIDIA
+  `.run` packages
+- ☑️ No experimental or third-party repositories (everything comes from Debian)
+- ☑️ main, contrib, non-free and non-free-firmware ENABLED in `/etc/apt/sources.list`
+- ☑️ System up to date
+
+---
+
+## Step 1 – Update the system
 
 ```bash
 sudo apt update && sudo apt upgrade -y
@@ -28,7 +32,7 @@ sudo apt install -y curl wget sudo vim gnupg2 ca-certificates lsb-release
 
 ---
 
-## Step 2 – Imposta repository Debian ufficiali
+## Step 2 – Set up the official Debian repositories
 
 ```bash
 sudo tee /etc/apt/sources.list > /dev/null <<'EOF2'
@@ -43,20 +47,20 @@ sudo apt update
 
 ---
 
-## Step 3 – Installa Driver NVIDIA e toolkit CUDA Debian (NON repo NVIDIA!)
+## Step 3 – Install the NVIDIA driver and Debian's CUDA toolkit (NOT the NVIDIA repo!)
 
 ```bash
 sudo apt install -y nvidia-driver nvidia-cuda-toolkit
 sudo reboot
-# Dopo riavvio:
+# After the reboot:
 nvidia-smi
 ```
 
-🔎 Se il comando sopra mostra la tua GPU sei a posto!
+🔎 If that command shows your GPU, you're set.
 
 ---
 
-## Step 4 – Installa Docker (ultimo da repo Docker, non serve PPA)
+## Step 4 – Install Docker (latest from the Docker repo, no PPA needed)
 
 ```bash
 sudo apt install -y ca-certificates curl gnupg
@@ -70,12 +74,12 @@ sudo apt update
 sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 sudo systemctl enable docker
 sudo systemctl start docker
-sudo usermod -aG docker $USER   # Logout/login per rendere effettivo
+sudo usermod -aG docker $USER   # log out and back in for this to take effect
 ```
 
 ---
 
-## Step 5 – Installa NVIDIA Container Toolkit
+## Step 5 – Install the NVIDIA Container Toolkit
 
 ```bash
 curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
@@ -89,7 +93,7 @@ sudo nvidia-ctk runtime configure --runtime=docker
 sudo systemctl restart docker
 ```
 
-#### Test GPU dentro Docker:
+#### Test the GPU inside Docker:
 
 ```bash
 docker run --rm --gpus all nvidia/cuda:12.2.0-base-ubuntu22.04 nvidia-smi
@@ -97,15 +101,15 @@ docker run --rm --gpus all nvidia/cuda:12.2.0-base-ubuntu22.04 nvidia-smi
 
 ---
 
-## Controllo post-installazione repository
+## Post-install repository check
 
-Verifica che non siano state aggiunte repository NVIDIA/CUDA extra:
+Make sure no extra NVIDIA/CUDA repositories crept in:
 
 ```bash
 grep -Ri nvidia /etc/apt/sources.list*
 ```
 
-Se il risultato contiene repo come `developer.download.nvidia.com`, rimuovile e poi esegui:
+If the output mentions repos like `developer.download.nvidia.com`, remove them and then run:
 
 ```bash
 sudo apt update
@@ -113,41 +117,45 @@ sudo apt update
 
 ---
 
-## Step 6 – Checklist post-installazione
+## Step 6 – Post-install checklist
 
-- `nvidia-smi` DEVE funzionare e mostrare la scheda video
-- I container Docker DEVONO essere in grado di rilevare la GPU
-- Esegui almeno un reboot e verifica che il modulo NVIDIA si carichi correttamente (`lsmod | grep nvidia`)
-- NO warning rossi in `dmesg`/`syslog`/`kernel`
-- Docker e CasaOS funzionano
-- NESSUN altro repository NVIDIA/CUDA configurato
-
----
-
-## Upgrade futuro
-
-Dopo l'installazione di base, usa come UNICO metodo per futuri upgrade driver lo [script di safe upgrade driver NVIDIA](../gpu-nvidia-update/) e NON eseguire un `apt upgrade` diretto sui pacchetti NVIDIA.
+- `nvidia-smi` MUST work and show the card
+- Docker containers MUST be able to see the GPU
+- Reboot at least once and confirm the NVIDIA module loads (`lsmod | grep nvidia`)
+- No red warnings in `dmesg`/`syslog`/`kernel`
+- Docker and CasaOS both work
+- NO other NVIDIA/CUDA repository configured
 
 ---
-## 🔒 Sicurezza aggiornamenti: apt upgrade e driver NVIDIA
 
-Anche su sistemi con **solo repository Debian ufficiali**, è raccomandato aggiornare i driver NVIDIA **solo tramite lo script di safe-upgrade dedicato**.
+## Future upgrades
 
-- **Per aggiornamenti di sistema e delle app:**
-  - Usa normalmente `apt update && apt upgrade -y`.
-- **Per i driver NVIDIA:**
-  - NON affidarti solo a `apt upgrade` per `nvidia-driver` e pacchetti correlati.
-  - Usa sempre [nvidia_safe_upgrade.sh](../gpu-nvidia-update/) per garantire che **tutte** le versioni dei pacchetti NVIDIA siano allineate prima dell'aggiornamento.
-  - Questo evita problemi come:
-    - `nvidia-smi` non trovato
-    - moduli NVIDIA non caricati
-    - Docker/LLM che non rilevano più la GPU
+Once the base install is done, use the
+[NVIDIA safe driver upgrade script](../gpu-nvidia-update/) as the ONLY way to upgrade the driver.
+Do not run a plain `apt upgrade` over the NVIDIA packages.
 
-**In caso di dubbio:**
-- Tieni i pacchetti NVIDIA in hold con `apt-mark hold ...`
-- Sbloccali solo per lo script di upgrade, poi rimetteli in hold.
+---
+## 🔒 Update safety: apt upgrade and the NVIDIA driver
 
-### Blocca i pacchetti NVIDIA per sicurezza
+Even on a system with **only official Debian repositories**, upgrade the NVIDIA drivers **through
+the dedicated safe-upgrade script only**.
+
+- **For system and application updates:**
+  - `apt update && apt upgrade -y` as usual.
+- **For the NVIDIA drivers:**
+  - Don't rely on `apt upgrade` alone for `nvidia-driver` and its related packages.
+  - Always use [nvidia_safe_upgrade.sh](../gpu-nvidia-update/) so that **all** NVIDIA package
+    versions are aligned before the upgrade.
+  - This avoids problems such as:
+    - `nvidia-smi` not found
+    - NVIDIA modules not loading
+    - Docker/LLM workloads no longer seeing the GPU
+
+**When in doubt:**
+- Hold the NVIDIA packages with `apt-mark hold ...`
+- Unhold them only for the upgrade script, then put the hold back.
+
+### Hold the NVIDIA packages, to be safe
 
 ```bash
 sudo apt-mark hold nvidia-driver nvidia-driver-bin nvidia-driver-libs nvidia-kernel-dkms \
@@ -155,7 +163,7 @@ sudo apt-mark hold nvidia-driver nvidia-driver-bin nvidia-driver-libs nvidia-ker
   firmware-nvidia-gsp nvidia-persistenced
 ```
 
-### Sblocca e aggiorna solo con lo script
+### Unhold and upgrade with the script only
 
 ```bash
 sudo apt-mark unhold nvidia-driver nvidia-driver-bin nvidia-driver-libs nvidia-kernel-dkms \
@@ -171,11 +179,12 @@ sudo apt-mark hold nvidia-driver nvidia-driver-bin nvidia-driver-libs nvidia-ker
 
 ## Troubleshooting
 
-- **NON mischiare repo CUDA e repo Debian!**
-- Se qualcosa va storto, torna al backup/snapshot VM e ricontrolla TUTTO l’allineamento!
+- **Don't mix the CUDA repo with the Debian repo!**
+- If something goes wrong, roll back to the VM backup/snapshot and re-check every version.
 
 ---
 
-## Script aggiornamento sicuro
+## Safe upgrade script
 
-✳️ Per mantenere il sistema e i driver sempre allineati senza sorprese, usa lo [script di safe upgrade driver NVIDIA](../gpu-nvidia-update/).
+✳️ To keep the system and the drivers aligned without surprises, use the
+[NVIDIA safe driver upgrade script](../gpu-nvidia-update/).
