@@ -1,0 +1,35 @@
+# Editor temp files
+*.swp
+*.swo
+*~
+*.bak
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Logs and temporary output
+*.log
+*.tmp
+*.cache
+
+# VS Code
+.vscode/
+
+# Local shell history
+.history
+
+# Git hooks or generated files can be added here if needed
+.github/
+
+# Credenziali reali - mai committare (solo i .example vanno nel repo)
+.env
+*.env
+sasl_passwd
+!*.example

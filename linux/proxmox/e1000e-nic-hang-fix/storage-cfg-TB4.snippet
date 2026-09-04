@@ -1,0 +1,29 @@
+# Snippet da /etc/pve/storage.cfg — sostituisce la voce cifs:TB4 originale
+# (che puntava a se stesso via //10.0.0.10/4TB) con uno storage locale.
+#
+# PRIMA (sbagliato — CIFS verso l'IP di questo stesso host):
+#
+#   cifs: TB4
+#   	path /mnt/pve/TB4
+#   	server 10.0.0.10
+#   	share 4TB
+#   	content images,snippets,rootdir,import,backup,iso,vztmpl
+#   	prune-backups keep-all=1
+#   	username Condiviso
+#
+# DOPO (corretto — storage dir sul disco già montato localmente):
+#
+dir: TB4
+	path /mnt/4TB
+	content snippets,import,backup,iso,vztmpl
+	prune-backups keep-all=1
+
+# NOTE:
+# - "images"/"rootdir" rimossi dal content: il disco è NTFS (via ntfs-3g), non
+#   gestisce permessi Unix/symlink, e su questo host quelle directory erano
+#   comunque vuote (nessun disco VM ci girava sopra).
+# - Dopo aver applicato, ricordati di:
+#     systemctl stop mnt-pve-TB4.mount   # se il vecchio mount CIFS è ancora attivo
+#     rm -f /etc/pve/priv/storage/TB4.pw # credenziale CIFS non più usata
+#     systemctl restart pvestatd
+#     pvesm status                       # verifica che TB4 risulti "dir" e "active"
