@@ -62,8 +62,6 @@ sysadmin-field-notes/
 
 **Legend:** 📄 guide (README.md) · 🔧 executable script · ⚙️ config file or snippet
 
-> The individual guides are written in Italian; the index and layout above are in English.
-
 ---
 
 ## ✍️ Conventions
