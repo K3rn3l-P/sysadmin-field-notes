@@ -24,13 +24,15 @@ during a restore, a reinstall, or when re-applying a fix that was already solved
 | **GPU / NVIDIA** | [Clean NVIDIA driver install](linux/gpu-nvidia-install-guide/README.md) | Debian 12 / VM / Proxmox |
 | | [Safe NVIDIA driver upgrade](linux/gpu-nvidia-update/README.md) | Debian/Ubuntu, VMs, Proxmox, passthrough + automated script |
 | | [VRAM per Docker container](linux/gpu-tools/README.md) | Maps `nvidia-smi` output to containers + script |
+| **Raspberry Pi** | [OpenMediaVault NAS](linux/raspberry/openmediavault/README.md) | Install, Docker/Portainer, WireGuard, SSH certs + hot backup script |
 | **System & disks** | [Automatic swap for VMs](linux/create-swap/README.md) | Script + Proxmox/Linux guide |
 | | [Hardware and disk commands](linux/disk-info-hw/README.md) | CPU, RAM, disks, buses, SMART |
 | | [Disk usage analysis (ncdu)](linux/ncdu-disk-usage/README.md) | Interactive usage |
 | | [Temperature and hardware sensors](linux/sensors-hw/README.md) | `lm-sensors` + monitor script + boot/hang logging |
 | **Docker** | [Deep Docker cleanup](linux/docker-clean/README.md) | Cache, images, volumes |
 | **Network** | [Samba share](linux/samba-share/README.md) | LAN share setup + ⚠️ how to wire it into Proxmox without CIFS-to-self |
-| **Windows** | [Windows utilities](windows/README.md) | Placeholder, to be filled in |
+| **Windows** | [Chocolatey](windows/chocolatey/README.md) | Package manager install + bulk upgrade script |
+| | [RDP hardening and port change](windows/rdp-change-port/README.md) | Remote Desktop setup, registry tweak, moving off port 3389 |
 
 ---
 
@@ -46,6 +48,8 @@ sysadmin-field-notes/
 │   ├── gpu-nvidia-update/               📄 guide + 🔧 nvidia_safe_upgrade.sh, nvidia_safe_upgrade_auto.sh
 │   ├── gpu-tools/                       📄 guide + 🔧 gpu-vram-by-container.sh
 │   ├── ncdu-disk-usage/                 📄 guide
+│   ├── raspberry/
+│   │   └── openmediavault/              📄 guide + 🔧 backup_script.sh
 │   ├── proxmox/
 │   │   ├── disco-lvm-reset/             📄 guide
 │   │   ├── e1000e-nic-hang-fix/         📄 guide + 🔧 watchdog + ⚙️ config (interfaces/storage/smartd)
@@ -57,7 +61,9 @@ sysadmin-field-notes/
 │   │   └── strutturazione-dischi/       📄 guide
 │   ├── samba-share/                     📄 guide
 │   └── sensors-hw/                      📄 guide + 🔧 monitor-cpu-temp.sh
-└── windows/                             📄 placeholder
+└── windows/
+    ├── chocolatey/                      📄 guide + 🔧 upgrade-choco-packages.ps1
+    └── rdp-change-port/                 📄 guide + 🔧 change-rdp-port.bat + ⚙️ no-rdp-lock.reg
 ```
 
 **Legend:** 📄 guide (README.md) · 🔧 executable script · ⚙️ config file or snippet
@@ -73,7 +79,7 @@ sysadmin-field-notes/
 - When adding a guide: create the folder, write its `README.md`, then **update the quick index
   table and the tree above** — that's the only thing that has to be kept in sync by hand.
 
-Host addresses in these guides are placeholders (`10.0.0.10`, `10.0.0.20`), not real ones.
+Host addresses in these guides are placeholders (`10.0.0.10`, `10.0.0.20`, `10.0.0.30`), not real ones.
 
 ---
 
