@@ -1,4 +1,5 @@
 #!/bin/bash
+set -o pipefail
 
 date +"%F %H:%M:%S"
 
@@ -22,16 +23,22 @@ drive_backup=
 
 #end variables
 
-mkdir -p $drive_backup/backup/
-cd $drive_backup/backup/
+if [[ -z "$SD" || -z "$drive_backup" ]]; then
+        echo "SD and drive_backup must be set before running this script. Exiting."
+        echo "$(date +"%b %-d %X") blank BACKUP: SD or drive_backup not set. Exiting." >> /var/log/messages
+        exit 1
+fi
 
-if [[ ! -f bkp_$data.gz ]];then
+mkdir -p "$drive_backup/backup/"
+cd "$drive_backup/backup/" || exit 1
+
+if [[ ! -f "bkp_$data.gz" ]];then
         echo "starting the backup..."
         echo "$(date +"%b %-d %X") blank BACKUP: starting the backup..." >> /var/log/messages
-        sudo dd bs=4M if=/dev/$SD | pv | gzip > $drive_backup/backup/bkp_$data.gz
-        if [[ $? -eq 0 ]];then
+        if sudo dd bs=4M if="/dev/$SD" | pv | gzip > "bkp_$data.gz"; then
                 echo "backup created successfully. Removing older backups, keeping the last 2"
                 echo "$(date +"%b %-d %X") blank BACKUP: backup created successfully. Removing older backups, keeping the last 2" >> /var/log/messages
+                # shellcheck disable=SC2012 # filenames are always bkp_YYYYMMDD.gz, ls is fine here
                 ls -ltr bkp*.gz | head -n -2 | awk '{print $NF}' | xargs rm -f --
         else
                 echo "WARNING! The backup failed. Old backups are kept, to be safe."
@@ -44,6 +51,6 @@ fi
 
 echo "script finished"
 echo "$(date +"%b %-d %X") blank BACKUP: script finished" >> /var/log/messages
-mv -f /tmp/backup_script.log $drive_backup/backup/
+mv -f /tmp/backup_script.log "$drive_backup/backup/"
 
 exit
