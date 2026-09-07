@@ -1,5 +1,7 @@
 # sysadmin-field-notes
 
+[![shellcheck](https://github.com/K3rn3l-P/sysadmin-field-notes/actions/workflows/shellcheck.yml/badge.svg)](https://github.com/K3rn3l-P/sysadmin-field-notes/actions/workflows/shellcheck.yml)
+
 > Tested scripts, guides and configuration for administering, virtualising and tuning Linux
 > systems (mainly Proxmox VE), Windows and GPU hardware.
 
