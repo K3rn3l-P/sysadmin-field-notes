@@ -41,7 +41,7 @@ during a restore, a reinstall, or when re-applying a fix that was already solved
 ```
 sysadmin-field-notes/
 ├── linux/
-│   ├── create-swap/                     📄 guide + 🔧 crea_swap.sh
+│   ├── create-swap/                     📄 guide + 🔧 create_swap.sh
 │   ├── disk-info-hw/                    📄 guide
 │   ├── docker-clean/                    📄 guide
 │   ├── gpu-nvidia-install-guide/        📄 guide

@@ -23,14 +23,14 @@ Written for Debian/Ubuntu but easy to adapt.
 
 ## Creating swap automatically (script included)
 
-### 1. Copy `crea_swap.sh` into the VM
+### 1. Copy `create_swap.sh` into the VM
 ### 2. Make it executable
 ```bash
-chmod +x crea_swap.sh
+chmod +x create_swap.sh
 ```
 ### 3. Run it with the size you want (in GiB, default 4 GB):
 ```bash
-sudo ./crea_swap.sh 8   # creates an 8 GB swapfile
+sudo ./create_swap.sh 8   # creates an 8 GB swapfile
 ```
 
 ### 4. Check that swap is active:
@@ -41,12 +41,12 @@ swapon --show
 
 ---
 
-## Script: crea_swap.sh
+## Script: create_swap.sh
 
 ```bash
 #!/bin/bash
-# crea_swap.sh – creates a swap file automatically inside a VM
-# usage: sudo ./crea_swap.sh [GB]   (e.g. sudo ./crea_swap.sh 8)
+# create_swap.sh – creates a swap file automatically inside a VM
+# usage: sudo ./create_swap.sh [GB]   (e.g. sudo ./create_swap.sh 8)
 SIZE="${1:-4}" # defaults to 4GB if not given
 
 set -e

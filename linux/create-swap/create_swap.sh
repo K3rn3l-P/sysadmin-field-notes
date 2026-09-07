@@ -1,6 +1,6 @@
 #!/bin/bash
-# crea_swap.sh – creates a swap file automatically inside a VM
-# usage: sudo ./crea_swap.sh [GB]   (e.g. sudo ./crea_swap.sh 8)
+# create_swap.sh – creates a swap file automatically inside a VM
+# usage: sudo ./create_swap.sh [GB]   (e.g. sudo ./create_swap.sh 8)
 SIZE="${1:-4}" # defaults to 4GB if not given
 
 set -e
