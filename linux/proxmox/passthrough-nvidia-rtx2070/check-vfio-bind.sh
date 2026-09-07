@@ -69,19 +69,19 @@ msg_header "-- Checking kernel module loading --"
 if vfio_pci_bound; then
     msg_ok "The vfio-pci driver is active and bound to the GPU"
     if module_loaded vfio; then
-        msg_ok "Modulo vfio: caricato"
+        msg_ok "Module vfio: loaded"
     else
         msg_warn "vfio module: not loaded, or built into the kernel"
     fi
     if module_loaded vfio_iommu_type1; then
-        msg_ok "Modulo vfio_iommu_type1: caricato"
+        msg_ok "Module vfio_iommu_type1: loaded"
     else
         msg_warn "vfio_iommu_type1 module: not loaded, or built into the kernel"
     fi
 else
     for mod in vfio vfio_iommu_type1 vfio_pci; do
         if module_loaded "$mod"; then
-            msg_ok "Modulo ${mod}: caricato"
+            msg_ok "Module ${mod}: loaded"
         else
             msg_err "Module ${mod}: NOT loaded"
             ERRORLOG+=("Module ${mod} is not loaded.\n**Quick fix:**\n- Add '${mod}' on a new line in /etc/modules.\n- Run 'update-initramfs -u -k all' or 'proxmox-boot-tool refresh', then reboot.\n- Without vfio loaded, passthrough will not work correctly.")
@@ -92,7 +92,7 @@ fi
 
 if module_exists vfio_virqfd; then
     if module_loaded vfio_virqfd; then
-        msg_ok "Modulo vfio_virqfd: caricato"
+        msg_ok "Module vfio_virqfd: loaded"
     else
         msg_warn "vfio_virqfd module: available but not loaded (optional)"
         WARNLOG+=("vfio_virqfd is available but not loaded.\n**How to enable it:**\n- Add 'vfio_virqfd' to /etc/modules.\n- Run 'update-initramfs -u -k all' or 'proxmox-boot-tool refresh'.\n- Reboot the host.\n- If the module isn't found, install the pve-headers packages for the current kernel.\nIf you don't need advanced VFIO reset, you can ignore this warning.")
@@ -104,7 +104,7 @@ fi
 
 echo ""
 
-# --- STEP 1: Trova tutte le funzioni NVIDIA ---
+# --- STEP 1: find all NVIDIA functions ---
 mapfile -t DEVS < <(lspci -nn | grep -i nvidia || true)
 if [[ ${#DEVS[@]} -eq 0 ]]; then
     msg_warn "No NVIDIA functions found with 'grep -i nvidia'. Falling back to the NVIDIA vendor ID..."
@@ -125,7 +125,7 @@ for LINE in "${DEVS[@]}"; do
     NUM=$((NUM + 1))
 done
 
-SLOTS=($(printf "%s\n" "${DEVS[@]}" | cut -d'|' -f1 | cut -d. -f1 | uniq))
+mapfile -t SLOTS < <(printf "%s\n" "${DEVS[@]}" | cut -d'|' -f1 | cut -d. -f1 | uniq)
 for SLOT in "${SLOTS[@]}"; do
     echo -e "${PURPLE}-------------------------------------------${RESET}"
     echo -e "${BOLD}Slot PCIe: ${SLOT}.x - Device(s) NVIDIA${RESET}"
@@ -145,11 +145,11 @@ for SLOT in "${SLOTS[@]}"; do
         if [[ "$DRIVER" == "vfio-pci" ]]; then
             msg_ok "vfio-pci"
         elif [[ -z "$DRIVER" ]]; then
-            msg_warn "no driver in use"
+            msg_warn "no driver in use (available modules: ${MODS:-none})"
             ERRORLOG+=("$PCIADDR ($DESC) has no driver in use.\n**Fix:**\n- Check /etc/modprobe.d/vfio.conf and blacklist-nvidia.conf.\n- Reboot after updating the configuration files.\n- While the host driver is still present, the device won't be ready for the VM.")
             ERR_DEV=1
         else
-            msg_err "driver in uso: ${DRIVER}"
+            msg_err "driver in use: ${DRIVER}"
             ERRORLOG+=("$PCIADDR ($DESC) is handled by the host driver ${DRIVER} instead of vfio-pci.\n**Fix:**\n- Blacklist ${DRIVER} in /etc/modprobe.d/blacklist-nvidia.conf.\n- Check that /etc/modprobe.d/vfio.conf lists the right PCI IDs.\n- Rebuild initramfs and reboot.")
             ERR_DEV=1
         fi
@@ -165,7 +165,7 @@ for SLOT in "${SLOTS[@]}"; do
             GROUPS+=("none")
         fi
     done
-    GROUPS_UNIQ=($(printf "%s\n" "${GROUPS[@]}" | sort -u))
+    mapfile -t GROUPS_UNIQ < <(printf "%s\n" "${GROUPS[@]}" | sort -u)
     if [[ ${#GROUPS_UNIQ[@]} -eq 1 && "${GROUPS_UNIQ[0]}" != "none" ]]; then
         GRP="${GROUPS_UNIQ[0]}"
         MEMBERS=$(find "/sys/kernel/iommu_groups/$GRP/devices" -type l | sort || true)
@@ -174,6 +174,7 @@ for SLOT in "${SLOTS[@]}"; do
             msg_ok "IOMMU group ${GRP} OK: no unrelated devices"
         else
             msg_warn "IOMMU group ${GRP} contains other devices"
+            # shellcheck disable=SC2001 # MEMBERS is multi-line; sed strips the prefix per line, a parameter expansion would not
             echo "${MEMBERS}" | sed 's|.*/||'
             ERRORLOG+=("IOMMU group ${GRP} contains devices other than the GPU.\n**Fix:**\n- Consider pcie_acs_override=downstream,multifunction.\n- If possible, move the GPU to a slot with an isolated group.\n- Don't pass extra devices through to the VM without checking the impact.")
             ERR_DEV=1
@@ -185,7 +186,7 @@ for SLOT in "${SLOTS[@]}"; do
     fi
 
     if [[ "$SLOT" == "${SLOTS[0]}" ]]; then
-        msg_header "-- Kernel cmdline (parametri boot critici) --"
+        msg_header "-- Kernel cmdline (critical boot parameters) --"
         CMDLINE=$(cat /proc/cmdline)
         if grep -q 'intel_iommu=on' <<< "$CMDLINE"; then msg_ok "intel_iommu=on present"; else msg_err "intel_iommu=on missing"; ERRORLOG+=("Kernel parameter 'intel_iommu=on' is missing.\n**Fix:**\n- Add it to /etc/kernel/cmdline or /etc/default/grub.\n- Run proxmox-boot-tool refresh or update-grub, then reboot."); fi
         if grep -q 'iommu=pt' <<< "$CMDLINE"; then msg_ok "iommu=pt present"; else msg_err "iommu=pt missing"; ERRORLOG+=("Kernel parameter 'iommu=pt' is missing.\n**Fix:**\n- Add it to the boot parameters and reboot."); fi
@@ -223,14 +224,14 @@ for SLOT in "${SLOTS[@]}"; do
     fi
 
     if [[ $ERR_DEV -eq 0 ]]; then
-        msg_ok "SLOT ${SLOT} OK: PCI passthrough NVIDIA pronto"
+        msg_ok "SLOT ${SLOT} OK: NVIDIA PCI passthrough ready"
     else
         msg_err "SLOT ${SLOT} has problems: see the suggestions"
     fi
 done
 
 if [[ ${#ERRORLOG[@]} -gt 0 ]]; then
-    echo -e "\n${BOLD}${RED}=== ERRORI & SUGGERIMENTI ===${RESET}"
+    echo -e "\n${BOLD}${RED}=== ERRORS & SUGGESTIONS ===${RESET}"
     for e in "${ERRORLOG[@]}"; do
         echo -e "${YELLOW}----------------------------------------------${RESET}"
         echo -e "$e"
@@ -238,7 +239,7 @@ if [[ ${#ERRORLOG[@]} -gt 0 ]]; then
     echo -e "${BOLD}${YELLOW}See the troubleshooting/FAQ section of the guide for detailed examples.${RESET}"
 fi
 if [[ ${#WARNLOG[@]} -gt 0 ]]; then
-    echo -e "\n${BOLD}${YELLOW}=== AVVISI OPZIONALI ===${RESET}"
+    echo -e "\n${BOLD}${YELLOW}=== OPTIONAL WARNINGS ===${RESET}"
     for e in "${WARNLOG[@]}"; do
         echo -e "${YELLOW}----------------------------------------------${RESET}"
         echo -e "$e"
@@ -246,3 +247,5 @@ if [[ ${#WARNLOG[@]} -gt 0 ]]; then
 fi
 
 echo -e "${CYAN}-- Check script by K3rn3l-P | https://github.com/K3rn3l-P/sysadmin-field-notes --${RESET}"
+
+exit "$FAIL"

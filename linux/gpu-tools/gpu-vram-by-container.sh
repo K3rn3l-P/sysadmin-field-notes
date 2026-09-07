@@ -4,7 +4,6 @@ set -euo pipefail
 # Show GPU VRAM usage per process and map each process to a Docker container (if any).
 # Requires: nvidia-smi, docker (optional but recommended)
 
-CSI=$'\033['
 RESET=$'\033[0m'
 GREEN=$'\033[32m'
 YELLOW=$'\033[33m'
@@ -106,7 +105,6 @@ output_stats() {
   local line
   local gpu_line
   local proc_line
-  local row
 
   declare -A GPU_UUID_TO_INDEX=()
   GPU_LINES=()
@@ -220,7 +218,7 @@ output_stats() {
     return
   fi
 
-  if [[ ${#PREV_GPU_LINES[@]} -ne ${#GPU_LINES[@]} || ${PREV_GPU_IDS[*]} != ${GPU_IDS[*]} ]]; then
+  if [[ ${#PREV_GPU_LINES[@]} -ne ${#GPU_LINES[@]} || ${PREV_GPU_IDS[*]} != "${GPU_IDS[*]}" ]]; then
     clear_screen
     printf '%s
 ' "${BOLD}GPU summary:${RESET}"
@@ -242,7 +240,7 @@ output_stats() {
   fi
 
   local proc_start=$((4 + ${#GPU_LINES[@]} + 2))
-  if [[ ${#PREV_PROC_LINES[@]} -ne ${#PROC_LINES[@]} || ${PREV_PROC_PIDS[*]} != ${PROC_PIDS[*]} ]]; then
+  if [[ ${#PREV_PROC_LINES[@]} -ne ${#PROC_LINES[@]} || ${PREV_PROC_PIDS[*]} != "${PROC_PIDS[*]}" ]]; then
     printf '\033[%s;1H' "$proc_start"
     printf '%s\n' "${BOLD}Processes holding GPU VRAM:${RESET}"
     printf '%-8s %-10s %-5s %-14s %-16s %s\n' "PID" "VRAM(MB)" "GPU" "CONTAINER" "PROCESS" "IMAGE/NAME"

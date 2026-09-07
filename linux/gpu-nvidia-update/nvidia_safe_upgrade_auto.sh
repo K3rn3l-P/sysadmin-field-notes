@@ -21,7 +21,6 @@ LOG_MAX_BYTES=$((1024 * 1024))
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
 EXIT_CODE=0
-REBOOT_PENDING=0
 
 if [ -t 1 ]; then
   GREEN="\033[0;32m"
@@ -49,10 +48,10 @@ function warn() {
 }
 
 function require_cmd() {
-  command -v "$1" >/dev/null 2>&1 || die "Comando mancante: $1"
+  command -v "$1" >/dev/null 2>&1 || die "Missing command: $1"
 }
 
-# ----- Blocco PREFERENCES automatico anti-NVIDIA -----
+# ----- Automatic anti-NVIDIA APT preferences block -----
 PIN_FILE="/etc/apt/preferences.d/99-nvidia-block"
 PIN_FILE_DISABLED="${PIN_FILE}.DISABLED"
 PIN_CONTENT=$(cat <<'EOF'
@@ -108,6 +107,7 @@ function enable_nvidia_pin_block() {
   fi
 }
 
+# shellcheck disable=SC2317 # only called indirectly, from the EXIT trap below
 function restore_nvidia_apt_timers() {
   if [ "$APT_TIMERS_DISABLED" -eq 1 ] && command -v systemctl >/dev/null 2>&1; then
     for unit in "${APT_TIMER_UNITS[@]}"; do
@@ -171,11 +171,11 @@ function check_nvidia_mismatch() {
   fi
 
   if [ "$kver" != "$uver" ]; then
-    warn "[ALERT NVIDIA] Mismatch modulo kernel ($kver) vs userland ($uver)! Sistema potenzialmente instabile."
+    warn "[ALERT NVIDIA] Kernel module ($kver) vs userland ($uver) mismatch! System potentially unstable."
     return 1
   fi
 
-  info "[OK NVIDIA] Modulo kernel e userland allineati: $kver"
+  info "[OK NVIDIA] Kernel module and userland aligned: $kver"
   return 0
 }
 
@@ -249,7 +249,7 @@ for cmd in dpkg apt-mark apt-cache apt-get modinfo nvidia-smi tee awk; do
 done
 
 if [ "$(id -u)" -ne 0 ]; then
-  die "Questo script deve essere eseguito come root. Usa sudo o crontab root."
+  die "This script must be run as root. Use sudo or a root crontab."
 fi
 
 if [ -f "$LOG_FILE" ] && [ "$(wc -c <"$LOG_FILE")" -gt "$LOG_MAX_BYTES" ]; then
@@ -261,7 +261,7 @@ exec > >(tee -a "$LOG_FILE") 2>&1
 restore_nvidia_pin_block_on_exit
 ensure_nvidia_pin_block
 
-PKGS=( $(get_installed_nvidia_pkgs) )
+mapfile -t PKGS < <(get_installed_nvidia_pkgs)
 
 if [ ${#PKGS[@]} -eq 0 ]; then
   detect_non_apt_nvidia_install
@@ -269,9 +269,9 @@ if [ ${#PKGS[@]} -eq 0 ]; then
 fi
 
 echo "================================================================="
-echo "$(date '+%F %T') - Esecuzione automatica safe NVIDIA"
+echo "$(date '+%F %T') - Automatic safe NVIDIA run"
 echo "Log: $LOG_FILE"
-echo "NVIDIA packages detected: ${PKGS[*]:-nessuno}"
+echo "NVIDIA packages detected: ${PKGS[*]:-none}"
 echo "================================================================="
 
 if [ ${#PKGS[@]} -eq 0 ]; then
@@ -279,19 +279,19 @@ if [ ${#PKGS[@]} -eq 0 ]; then
   exit 0
 fi
 
-info "NOTA: i pacchetti NVIDIA verranno mantenuti in hold e sbloccati solo durante l'upgrade atomico."
+info "NOTE: the NVIDIA packages stay held, unlocked only during the atomic upgrade."
 hold_pkgs "${PKGS[@]}"
 
-info "Controllo mismatch NVIDIA prima dell'upgrade..."
-check_nvidia_mismatch || warn "⚠️ Si consiglia di riparare il mismatch NVIDIA prima di procedere."
+info "Checking for an NVIDIA mismatch before the upgrade..."
+check_nvidia_mismatch || warn "⚠️ Best to fix the NVIDIA mismatch before proceeding."
 
 info "Active repositories:"
 grep -h '^deb ' /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null || true
 
-info "Aggiorno la lista dei pacchetti..."
+info "Updating the package list..."
 apt-get update -qq
 
-info "Verifico versioni candidate di tutti i pacchetti NVIDIA installati..."
+info "Checking candidate versions for all installed NVIDIA packages..."
 ALL_OK=1
 REF_VER=""
 
@@ -331,13 +331,13 @@ if [ "$ALL_OK" -eq 1 ]; then
     enable_nvidia_pin_block
     enable_apt_timers
     hold_pkgs "${PKGS[@]}"
-    info "Upgrade completato e pacchetti NVIDIA ribloccati."
+    info "Upgrade complete, NVIDIA packages re-held."
 
-    info "Verifico mismatch NVIDIA dopo l'upgrade..."
+    info "Checking for an NVIDIA mismatch after the upgrade..."
     if check_nvidia_mismatch; then
-      info "Upgrade OK: modulo kernel e userland NVIDIA allineati."
+      info "Upgrade OK: NVIDIA kernel module and userland are aligned."
     else
-      warn "⚠️ Upgrade eseguito, ma il mismatch NVIDIA persiste. Servono azioni manuali."
+      warn "⚠️ Upgrade done, but the NVIDIA mismatch persists. Manual action needed."
     fi
 
     if [ -f /var/run/reboot-required ] || [ -f /var/run/reboot-required.pkgs ]; then
@@ -352,7 +352,7 @@ if [ "$ALL_OK" -eq 1 ]; then
     die "Automatic upgrade failed. Check $LOG_FILE for details."
   fi
 else
-  warn "❌ Versioni candidate diverse tra i pacchetti NVIDIA installati."
+  warn "❌ Candidate versions differ across the installed NVIDIA packages."
   warn "Upgrade not performed: wait for the repositories to line up, or check which NVIDIA packages are installed."
   EXIT_CODE=1
 fi

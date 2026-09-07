@@ -46,7 +46,7 @@ function require_cmd() {
   command -v "$1" >/dev/null 2>&1 || die "Required command not found: $1"
 }
 
-# ----- Blocco PREFERENCES automatico anti-NVIDIA -----
+# ----- Automatic anti-NVIDIA APT preferences block -----
 PIN_FILE="/etc/apt/preferences.d/99-nvidia-block"
 PIN_FILE_DISABLED="${PIN_FILE}.DISABLED"
 PIN_CONTENT=$(cat <<'EOF'
@@ -102,6 +102,7 @@ function enable_nvidia_pin_block() {
   fi
 }
 
+# shellcheck disable=SC2317 # only called indirectly, from the EXIT trap below
 function restore_nvidia_apt_timers() {
   if [ "$APT_TIMERS_DISABLED" -eq 1 ] && command -v systemctl >/dev/null 2>&1; then
     for unit in "${APT_TIMER_UNITS[@]}"; do
@@ -255,7 +256,7 @@ exec > >(tee -a "$LOG_FILE") 2>&1
 restore_nvidia_pin_block_on_exit
 ensure_nvidia_pin_block
 
-PKGS=( $(get_nvidia_pkgs) )
+mapfile -t PKGS < <(get_nvidia_pkgs)
 
 if [ ${#PKGS[@]} -eq 0 ]; then
   detect_non_apt_nvidia_install
@@ -303,7 +304,7 @@ done
 echo
 if [ "$ALL_OK" -eq 1 ]; then
   info "✅ All candidate versions match: $REF_VER"
-  read -r -p "Procedo con install/upgrade di TUTTI i pacchetti NVIDIA? [y/N] " RESP
+  read -r -p "Proceed with install/upgrade of ALL NVIDIA packages? [y/N] " RESP
   if [[ "$RESP" =~ ^[Yy]$ ]]; then
     info "Temporarily disabling the NVIDIA pin-block and the automatic APT timers, then unholding the packages for an atomic upgrade..."
     disable_nvidia_pin_block
