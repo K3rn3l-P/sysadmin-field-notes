@@ -33,6 +33,7 @@ during a restore, a reinstall, or when re-applying a fix that was already solved
 | | [Temperature and hardware sensors](linux/sensors-hw/README.md) | `lm-sensors` + monitor script + boot/hang logging |
 | **Docker** | [Deep Docker cleanup](linux/docker-clean/README.md) | Cache, images, volumes |
 | **Network** | [Samba share](linux/samba-share/README.md) | LAN share setup + ⚠️ how to wire it into Proxmox without CIFS-to-self |
+| | [Dual-uplink LAN routing](linux/dual-uplink-lan-route/README.md) | Fix unreachable LAN subnet when a second uplink (Wi-Fi/hotspot) wins the default route + script |
 | **Windows** | [Chocolatey](windows/chocolatey/README.md) | Package manager install + bulk upgrade script |
 | | [RDP hardening and port change](windows/rdp-change-port/README.md) | Remote Desktop setup, registry tweak, moving off port 3389 |
 
@@ -46,6 +47,7 @@ sysadmin-field-notes/
 │   ├── create-swap/                     📄 guide + 🔧 create_swap.sh
 │   ├── disk-info-hw/                    📄 guide
 │   ├── docker-clean/                    📄 guide
+│   ├── dual-uplink-lan-route/           📄 guide + 🔧 add-lan-route.sh
 │   ├── gpu-nvidia-install-guide/        📄 guide
 │   ├── gpu-nvidia-update/               📄 guide + 🔧 nvidia_safe_upgrade.sh, nvidia_safe_upgrade_auto.sh
 │   ├── gpu-tools/                       📄 guide + 🔧 gpu-vram-by-container.sh
