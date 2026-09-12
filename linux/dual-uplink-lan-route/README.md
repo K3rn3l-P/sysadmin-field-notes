@@ -45,7 +45,12 @@ ping -c1 <other-lan-host-ip>  # fails: needs routing through the gateway
 A route matching a specific subnet is always preferred over a default route, regardless of metric —
 so this fixes LAN access without touching how internet traffic is routed.
 
-### Temporary (until reboot)
+### Temporary (until reboot or reconnect)
+
+Note: this isn't just lost on reboot — it's dropped the moment the connection is reactivated
+(`nmcli connection up`, unplugging/replugging the cable, a NetworkManager restart), even without a
+reboot. If you're about to touch that connection's config again for any reason (e.g. adding a DNS
+routing domain), add the route persistently first instead, or you'll have to redo it.
 
 ```bash
 sudo ip route add <other-subnet>/<mask> via <lan-gateway-ip> dev <wired-interface>

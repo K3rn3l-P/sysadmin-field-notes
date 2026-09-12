@@ -34,6 +34,7 @@ during a restore, a reinstall, or when re-applying a fix that was already solved
 | **Docker** | [Deep Docker cleanup](linux/docker-clean/README.md) | Cache, images, volumes |
 | **Network** | [Samba share](linux/samba-share/README.md) | LAN share setup + ⚠️ how to wire it into Proxmox without CIFS-to-self |
 | | [Dual-uplink LAN routing](linux/dual-uplink-lan-route/README.md) | Fix unreachable LAN subnet when a second uplink (Wi-Fi/hotspot) wins the default route + script |
+| | [Dual-uplink DNS routing](linux/dual-uplink-dns-routing/README.md) | Fix a split-horizon LAN domain not resolving when a second uplink's resolver answers instead + script |
 | **Windows** | [Chocolatey](windows/chocolatey/README.md) | Package manager install + bulk upgrade script |
 | | [RDP hardening and port change](windows/rdp-change-port/README.md) | Remote Desktop setup, registry tweak, moving off port 3389 |
 
