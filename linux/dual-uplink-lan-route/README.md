@@ -86,6 +86,13 @@ The route now survives reboots and reconnects, and only applies while that profi
 
 ## Extra notes
 
+- **Not a reverse-proxy or router problem:** a reverse proxy (Nginx Proxy Manager, Traefik, ...)
+  only sees a request after it already arrived, so nothing there can fix a client that never got a
+  packet there in the first place. And the LAN router/gateway can't fix it either when the second
+  uplink is external to it (e.g. a phone's hotspot, not one of the router's own WAN ports): the
+  router has no visibility into that link and no way to influence which interface the client
+  picks — routing decisions on a multi-homed client are made by that client's own OS, so the fix
+  has to live there.
 - If the "other subnet" is actually a separate VLAN behind a router with inter-VLAN firewall
   rules, adding the route only gets the packets there — the router still has to be configured to
   allow traffic between the VLANs. Test with a device already known to work cross-VLAN before

@@ -103,6 +103,13 @@ resolvectl query somehost.home.example
 
 ## Extra notes
 
+- **Not a reverse-proxy or router problem:** a reverse proxy's per-path config (e.g. Nginx Proxy
+  Manager's "Custom Locations") only applies to a request that already arrived there over HTTP(S)
+  — it has no way to influence which DNS server a client asked to resolve the name in the first
+  place. The LAN router can't fix a client's resolver choice either when the second uplink is
+  external to it (e.g. a phone's hotspot): that link isn't part of the router's own network, so it
+  has no visibility into it and no lever to pull. The fix belongs on the client, same as the
+  routing case above.
 - The `~` prefix marks it a *routing* domain (used only to pick which DNS server answers), not a
   *search* domain (used to expand bare hostnames) — it won't make `ping somehost` try
   `somehost.home.example` automatically.
