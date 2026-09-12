@@ -48,6 +48,7 @@ sysadmin-field-notes/
 │   ├── create-swap/                     📄 guide + 🔧 create_swap.sh
 │   ├── disk-info-hw/                    📄 guide
 │   ├── docker-clean/                    📄 guide
+│   ├── dual-uplink-dns-routing/         📄 guide + 🔧 set-dns-routing-domain.sh
 │   ├── dual-uplink-lan-route/           📄 guide + 🔧 add-lan-route.sh
 │   ├── gpu-nvidia-install-guide/        📄 guide
 │   ├── gpu-nvidia-update/               📄 guide + 🔧 nvidia_safe_upgrade.sh, nvidia_safe_upgrade_auto.sh
