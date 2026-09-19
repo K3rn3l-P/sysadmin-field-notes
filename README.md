@@ -27,6 +27,7 @@ during a restore, a reinstall, or when re-applying a fix that was already solved
 | | [Safe NVIDIA driver upgrade](linux/gpu-nvidia-update/README.md) | Debian/Ubuntu, VMs, Proxmox, passthrough + automated script |
 | | [VRAM per Docker container](linux/gpu-tools/README.md) | Maps `nvidia-smi` output to containers + script |
 | **Raspberry Pi** | [OpenMediaVault NAS](linux/raspberry/openmediavault/README.md) | Install, Docker/Portainer, WireGuard, SSH certs + hot backup script |
+| | [Zigbee coordinator over the network (ser2net)](linux/raspberry/ser2net-zigbee-bridge/README.md) | Pi Zero W serial bridge, headless card prep, ZHA over `socket://` ⚠️ Wi-Fi blocked by rfkill + ARMv6 vs ARMv7 `.deb` |
 | **System & disks** | [Automatic swap for VMs](linux/create-swap/README.md) | Script + Proxmox/Linux guide |
 | | [Hardware and disk commands](linux/disk-info-hw/README.md) | CPU, RAM, disks, buses, SMART |
 | | [Disk usage analysis (ncdu)](linux/ncdu-disk-usage/README.md) | Interactive usage |
@@ -55,7 +56,8 @@ sysadmin-field-notes/
 │   ├── gpu-tools/                       📄 guide + 🔧 gpu-vram-by-container.sh
 │   ├── ncdu-disk-usage/                 📄 guide
 │   ├── raspberry/
-│   │   └── openmediavault/              📄 guide + 🔧 backup_script.sh
+│   │   ├── openmediavault/              📄 guide + 🔧 backup_script.sh
+│   │   └── ser2net-zigbee-bridge/       📄 guide + 🔧 prepare-pi-card.sh
 │   ├── proxmox/
 │   │   ├── disco-lvm-reset/             📄 guide
 │   │   ├── e1000e-nic-hang-fix/         📄 guide + 🔧 watchdog + ⚙️ config (interfaces/storage/smartd)
