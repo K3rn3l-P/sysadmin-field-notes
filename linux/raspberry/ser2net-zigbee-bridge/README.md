@@ -297,6 +297,62 @@ A Pi Zero W is Wi-Fi only, so this setup is squarely in that warning. It works, 
 legitimate way to keep a network alive while waiting for a proper Ethernet coordinator — but expect
 occasional drops, and treat it as temporary.
 
+## 7. Keep it running unattended
+
+A bridge nobody looks at needs to come back on its own. [`harden-pi-bridge.sh`](harden-pi-bridge.sh)
+applies four things, all idempotent and all working without internet access:
+
+```bash
+sudo ./harden-pi-bridge.sh 20108
+```
+
+It reads the serial device straight out of `/etc/ser2net.yaml`, so there is no path to keep in sync.
+
+**1. ser2net restarts itself.** The Debian unit ships with `Restart=no`: if the process dies it
+stays dead, and the Zigbee network is gone until somebody notices. A drop-in sets `Restart=always`
+with `RestartSec=5`. Check what yours has before assuming:
+
+```bash
+systemctl show ser2net -p Restart --value
+```
+
+**2. The hardware watchdog.** Raspberry Pi boards expose `/dev/watchdog`, and systemd keeps feeding
+it so that a genuinely hung kernel reboots the board. This is the only automatic reboot worth
+having: it fires only when the machine is already lost.
+
+On Raspberry Pi OS this is **already enabled out of the box**, by
+`/usr/lib/systemd/system.conf.d/40-rpi-enable-watchdog.conf` (`RuntimeWatchdogSec=1m`). Check
+before changing anything:
+
+```bash
+systemctl show -p RuntimeWatchdogUSec --value    # "0" means off, anything else means on
+```
+
+A drop-in under `system.conf.d` **overrides** `/etc/systemd/system.conf`, so editing that file
+while the drop-in exists changes nothing while looking like it worked. The script only writes
+`/etc/systemd/system.conf.d/50-watchdog.conf`, and only when the watchdog is actually off.
+
+**3. A health check every five minutes.** ser2net can be alive while the adapter has vanished — a
+USB glitch is enough. A timer checks that the `by-id` symlink still exists and that the port is
+still listening, and restarts ser2net if either is false.
+
+The check deliberately never opens a TCP connection to the port. With `kickolduser: true` that
+probe would evict the real client on every run.
+
+**4. Security updates only.** On a board with no screen, a kernel or bootloader update that goes
+wrong leaves you with something that does not boot and no way to see why — the fix is pulling the
+card and reading it on another machine. So `unattended-upgrades` runs with the kernel, the
+bootloader and `raspberrypi-sys-mods` blacklisted, and `Automatic-Reboot "false"`. Run
+`apt full-upgrade` by hand, when you are there to watch it.
+
+### What it deliberately does not do
+
+**No scheduled reboots.** Linux does not need them, and every reboot of the bridge takes the Zigbee
+network down for a minute. A nightly reboot only papers over the failures that a service restart
+already handles, at the cost of a guaranteed outage.
+
+**No unattended full upgrades.** See point 4.
+
 ## Troubleshooting
 
 **The Pi boots but never appears on the network.** Almost always trap 1. Power it off, put the card
@@ -354,6 +410,12 @@ debugfs -R "ls -l /etc" "lite.img?offset=545259520"
 - [ ] Coordinator addressed by its `by-id` path, not `/dev/ttyUSB0`
 - [ ] DHCP reservation for the Pi
 - [ ] ZHA reconnected through `socket://` and the paired devices are back
+- [ ] `systemctl show ser2net -p Restart --value` reports `always`
+- [ ] `ser2net-healthcheck.timer` is active
+- [ ] `unattended-upgrades` installed, kernel blacklisted, automatic reboot off
+- [ ] `systemctl show -p RuntimeWatchdogUSec --value` is not `0`
+- [ ] After a reboot: the radio comes back unblocked, ser2net starts, and the Zigbee entities
+      recover without anyone touching them
 
 ## Sources
 

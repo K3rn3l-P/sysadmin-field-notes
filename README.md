@@ -57,7 +57,7 @@ sysadmin-field-notes/
 │   ├── ncdu-disk-usage/                 📄 guide
 │   ├── raspberry/
 │   │   ├── openmediavault/              📄 guide + 🔧 backup_script.sh
-│   │   └── ser2net-zigbee-bridge/       📄 guide + 🔧 prepare-pi-card.sh
+│   │   └── ser2net-zigbee-bridge/       📄 guide + 🔧 prepare-pi-card.sh, harden-pi-bridge.sh
 │   ├── proxmox/
 │   │   ├── disco-lvm-reset/             📄 guide
 │   │   ├── e1000e-nic-hang-fix/         📄 guide + 🔧 watchdog + ⚙️ config (interfaces/storage/smartd)
